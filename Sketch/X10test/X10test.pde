@@ -10,8 +10,11 @@
 #include <X10rf.h>
 #include <X10ir.h>
 
+// zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = 1 (true)
 X10ex x10ex = X10ex(2, 4, 5, 6, 1, processPlcMessage);
+// receiveInt = 0 (external interrupt), receivePin = 2
 X10rf x10rf = X10rf(0, 2, processRfCommand);
+// receiveInt = 1 (external interrupt), receivePin = 3, defaultHouse = 'A'
 X10ir x10ir = X10ir(1, 3, 'A', processIrCommand);
 
 void setup()
