@@ -1,0 +1,50 @@
+#######################################
+# Syntax Coloring Map For X10ex
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+X10ex	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+sendAddress	KEYWORD2
+sendCmd	KEYWORD2
+sendDim	KEYWORD2
+sendExt	KEYWORD2
+sendExtDim	KEYWORD2
+
+######################################
+# Instances (KEYWORD2)
+#######################################
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+DATA_UNKNOWN	LITERAL1
+
+CMD_ALL_UNITS_OFF	LITERAL1
+CMD_ALL_LIGHTS_ON	LITERAL1
+CMD_ON	LITERAL1
+CMD_OFF	LITERAL1
+CMD_DIM	LITERAL1
+CMD_BRIGHT	LITERAL1
+CMD_ALL_LIGHTS_OFF	LITERAL1
+CMD_EXTENDED_CODE	LITERAL1
+CMD_HAIL_REQUEST	LITERAL1
+CMD_HAIL_ACKNOWLEDGE	LITERAL1
+CMD_PRE_SET_DIM_0	LITERAL1
+CMD_PRE_SET_DIM_1	LITERAL1
+CMD_EXTENDED_DATA	LITERAL1
+CMD_STATUS_ON	LITERAL1
+CMD_STATUS_OFF	LITERAL1
+CMD_STATUS_REQUEST	LITERAL1
+
+EXC_PRE_SET_DIM	LITERAL1

@@ -1,0 +1,33 @@
+#######################################
+# Syntax Coloring Map For X10ir
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+X10ir	KEYWORD1
+bool	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+
+######################################
+# Instances (KEYWORD2)
+#######################################
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+CMD_ADDRESS	LITERAL1
+CMD_ALL_UNITS_OFF	LITERAL1
+CMD_ALL_LIGHTS_ON	LITERAL1
+CMD_ON	LITERAL1
+CMD_OFF	LITERAL1
+CMD_DIM	LITERAL1
+CMD_BRIGHT	LITERAL1
