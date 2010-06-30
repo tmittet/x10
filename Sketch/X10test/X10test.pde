@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 X10 PLC, RF, IR library test sketch.                             */
+/* X10 X10 PLC, RF, IR library test sketch, v1.0.                       */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */

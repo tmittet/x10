@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 RF receiver library.                                             */
+/* X10 RF receiver library, v1.0.                                       */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
