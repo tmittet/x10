@@ -21,6 +21,12 @@
 #include <X10rf.h>
 #include <X10ir.h>
 
+// Fields used for serial message reception
+unsigned long scReceived;
+char scHouse;
+byte scUnit;
+byte scCommand;
+
 // zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true
 X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage);
 // receiveInt = 0 (external interrupt), receivePin = 2
@@ -35,11 +41,6 @@ void setup()
   x10rf.begin();
   x10ir.begin();
 }
-
-unsigned long scReceived;
-char scHouse;
-byte scUnit;
-byte scCommand;
 
 void loop()
 {
