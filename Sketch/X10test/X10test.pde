@@ -1,3 +1,11 @@
+/************************************************************/
+/* X10 X10 PLC, RF, IR library test sketch.                 */
+/* This library is free software; you can redistribute it   */
+/* and/or modify it under the terms of the GNU License v3.  */
+/*                                                          */
+/* Written by Thomas Mittet thomas@mittet.nu June 2010.     */
+/************************************************************/
+
 #include <X10ex.h>
 #include <X10rf.h>
 #include <X10ir.h>

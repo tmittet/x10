@@ -1,7 +1,7 @@
 /************************************************************/
 /* X10 Rx/Tx library for the XM10/TW7223/TW523 interface.   */
 /* This library is free software; you can redistribute it   */
-/* and/or modify it under the terms of the GNU License.     */
+/* and/or modify it under the terms of the GNU License v3.  */
 /*                                                          */
 /* Written by Thomas Mittet thomas@mittet.nu June 2010.     */
 /************************************************************/
