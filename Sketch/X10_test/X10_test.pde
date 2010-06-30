@@ -22,7 +22,7 @@
 #include <X10ir.h>
 
 // zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true
-X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlcMessage);
+X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage);
 // receiveInt = 0 (external interrupt), receivePin = 2
 X10rf x10rf = X10rf(0, 2, processRfCommand);
 // receiveInt = 1 (external interrupt), receivePin = 3, defaultHouse = 'A'
@@ -43,7 +43,7 @@ byte scCommand;
 
 void loop()
 {
-  // Serial must be 3 or 6 bytes long
+  // Serial messages must be 3 or 6 bytes long
   // Bytes must be sent within one second from the first to the last
   // To understand the format, looking up an ASCII table is a good start
   // Below are some examples:
@@ -141,7 +141,7 @@ void loop()
   }
 }
 
-void processPlcMessage(char house, byte unit, byte command, byte extData, byte extCommand, byte remainingBits)
+void processPlMessage(char house, byte unit, byte command, byte extData, byte extCommand, byte remainingBits)
 {
   printX10Message("PL_", house, unit, command, extData, extCommand, remainingBits);
 }
