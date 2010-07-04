@@ -154,7 +154,7 @@ bool X10rf::verifyByte(uint8_t data)
 
 char X10rf::parseHouseCode(uint8_t data)
 {
-  for(uint8_t i = 0; i < 16; i++)
+  for(uint8_t i = 0; i <= 0xF; i++)
   {
     if(HOUSE_CODE[i] == data) return i + 65;
   }
