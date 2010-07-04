@@ -240,8 +240,8 @@ void printX10Message(const char type[], char house, byte unit, byte command, byt
       break;
     case CMD_PRE_SET_DIM_0:
     case CMD_PRE_SET_DIM_1:
-      Serial.print("_PRD_");
-      Serial.println(round(extData * 100 / 31.0), DEC);
+      Serial.print("_PSD");
+      printX10Brightness(extData);
       break;
     case CMD_EXTENDED_DATA:
       Serial.print("_EXD");
@@ -261,8 +261,8 @@ void printX10Message(const char type[], char house, byte unit, byte command, byt
     switch(extCommand)
     {
       case EXC_PRE_SET_DIM:
-        Serial.print("_PRD_");
-        Serial.println(round(extData * 100 / 62.0), DEC);
+        Serial.print("_PSD");
+        printX10Brightness(extData);
         break;
       default:
         Serial.print("_");
@@ -277,6 +277,12 @@ void printX10Message(const char type[], char house, byte unit, byte command, byt
     Serial.print(remainingBits, DEC);
     Serial.println(" UNEXPECTED BITS RECEIVED.");
   }
+}
+
+void printX10Brightness(uint8_t extData)
+{
+  Serial.print("_");
+  Serial.println(round((extData & B111111) * 100 / 62.0), DEC);
 }
 
 bool handleScenario(byte unit, byte command, bool isRepeat)
@@ -361,17 +367,17 @@ bool handleScenario(byte unit, byte command, bool isRepeat)
 void sendAllLightsOn()
 {
   // Bedroom
-  x10ex.sendExtDim('A', 7, 80, 1);
+  x10ex.sendExtDim('A', 7, 80, EXC_DIM_TIME_4, 1);
   // Livingroom table
-  x10ex.sendExtDim('A', 2, 70, 1);
+  x10ex.sendExtDim('A', 2, 70, EXC_DIM_TIME_4, 1);
   // Hall
-  x10ex.sendExtDim('A', 8, 75, 1);
+  x10ex.sendExtDim('A', 8, 75, EXC_DIM_TIME_4, 1);
   // Livingroom couch
-  x10ex.sendExtDim('A', 3, 90, 1);
+  x10ex.sendExtDim('A', 3, 90, EXC_DIM_TIME_4, 1);
   // Kitchen
-  x10ex.sendExtDim('A', 9, 100, 1);
+  x10ex.sendExtDim('A', 9, 100, EXC_DIM_TIME_4, 1);
   // Livingroom shelves
-  x10ex.sendExtDim('A', 4, 40, 1);
+  x10ex.sendExtDim('A', 4, 40, EXC_DIM_TIME_4, 1);
 }
 
 void sendAllLightsOff()
@@ -386,8 +392,8 @@ void sendAllLightsOff()
 
 void sendHallAndKitchenOn()
 {
-  x10ex.sendExtDim('A', 8, 75, 1);
-  x10ex.sendExtDim('A', 9, 100, 1);
+  x10ex.sendExtDim('A', 8, 75, EXC_DIM_TIME_4, 1);
+  x10ex.sendExtDim('A', 9, 100, EXC_DIM_TIME_4, 1);
 }
 
 void sendHallAndKitchenOff()
@@ -398,9 +404,9 @@ void sendHallAndKitchenOff()
 
 void sendLivingRoomOn()
 {
-  x10ex.sendExtDim('A', 2, 70, 1);
-  x10ex.sendExtDim('A', 3, 90, 1);
-  x10ex.sendExtDim('A', 4, 40, 1); 
+  x10ex.sendExtDim('A', 2, 70, EXC_DIM_TIME_4, 1);
+  x10ex.sendExtDim('A', 3, 90, EXC_DIM_TIME_4, 1);
+  x10ex.sendExtDim('A', 4, 40, EXC_DIM_TIME_4, 1); 
 }
 
 void sendLivingRoomOff()
@@ -412,14 +418,14 @@ void sendLivingRoomOff()
 
 void sendLivingRoomTvScenario()
 {
-  x10ex.sendExtDim('A', 2, 40, 1);
-  x10ex.sendExtDim('A', 3, 30, 1);
-  x10ex.sendExtDim('A', 4, 25, 1); 
+  x10ex.sendExtDim('A', 2, 40, EXC_DIM_TIME_4, 1);
+  x10ex.sendExtDim('A', 3, 30, EXC_DIM_TIME_4, 1);
+  x10ex.sendExtDim('A', 4, 25, EXC_DIM_TIME_4, 1); 
 }
 
 void sendLivingRoomMovieScenario()
 {
   x10ex.sendCmd('A', 2, CMD_OFF, 1);
   x10ex.sendCmd('A', 3, CMD_OFF, 1);
-  x10ex.sendExtDim('A', 4, 25, 1); 
+  x10ex.sendExtDim('A', 4, 25, EXC_DIM_TIME_4, 1); 
 }
