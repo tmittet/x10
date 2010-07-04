@@ -99,7 +99,10 @@ void X10ex::begin()
 
 bool X10ex::sendAddress(char house, uint8_t unit, uint8_t repetitions)
 {
-  return sendCmd(house, unit, CMD_STATUS_ON, repetitions);
+  // Using CMD_STATUS_REQUEST to address units (prepare for BRIGHT, DIM, etc.).
+  // I've not seen any modules that reply to the request and even if they did
+  // it would not cause any harm.
+  return sendCmd(house, unit, CMD_STATUS_REQUEST, repetitions);
 }
 
 bool X10ex::sendCmd(char house, uint8_t command, uint8_t repetitions)
