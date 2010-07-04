@@ -177,7 +177,7 @@ bool X10ir::validateNibble(uint16_t data, uint8_t bits)
 
 int8_t X10ir::findCodeIndex(const uint8_t codeList[16], uint8_t code)
 {
-  for(uint8_t i = 0; i < 16; i++)
+  for(uint8_t i = 0; i <= 0xF; i++)
   {
     if(codeList[i] == code) return i;
   }
