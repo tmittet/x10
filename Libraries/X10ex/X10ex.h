@@ -64,7 +64,12 @@
 #define CMD_STATUS_REQUEST    B1111
 
 #define EXC_PRE_SET_DIM       B00110001
+#define EXC_DIM_TIME_4        B00
+#define EXC_DIM_TIME_30       B01
+#define EXC_DIM_TIME_60       B10
+#define EXC_DIM_TIME_300      B11
 
+// Used when buffering messages
 struct X10msg
 {
   uint32_t message;
@@ -88,7 +93,7 @@ class X10ex
     bool sendCmd(char house, uint8_t command, uint8_t repetitions);
     bool sendCmd(char house, uint8_t unit, uint8_t command, uint8_t repetitions);
     bool sendDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitions);
-    bool sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitions);
+    bool sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t time, uint8_t repetitions);
     bool sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, uint8_t extCommand, uint8_t repetitions);
     void zeroCross();
   

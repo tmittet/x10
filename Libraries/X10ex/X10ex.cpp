@@ -124,7 +124,7 @@ bool X10ex::sendDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitio
   }
   else
   {
-    uint8_t brightness = percent > 100 ? 31 : round(percent / 100.0 * 31.0);
+    uint8_t brightness = percent >= 100 ? 31 : round(percent / 100.0 * 31.0);
     return sendExt(
       house, unit, brightness >> 4 ? CMD_PRE_SET_DIM_1 : CMD_PRE_SET_DIM_0,
       // Reverse nibble before sending
@@ -133,7 +133,10 @@ bool X10ex::sendDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitio
   }
 }
 
-bool X10ex::sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitions)
+// This method works with all X10 modules that support extended code. The only
+// exception is the time attribute, that may result in unexpected behaviour
+// when set to anything but the default value 0, on some X10 modules.
+bool X10ex::sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t time, uint8_t repetitions)
 {
   if(percent == 0)
   {
@@ -141,9 +144,11 @@ bool X10ex::sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t repeti
   }
   else
   {
+    uint8_t data = percent >= 100 ? 62 : round(percent / 100.0 * 62.0);
+    data |= time >= B11 ? B11000000 : time << 6;
     return sendExt(
       house, unit, CMD_EXTENDED_CODE,
-      percent > 100 ? 62 : round(percent / 100.0 * 62.0), EXC_PRE_SET_DIM,
+      data, EXC_PRE_SET_DIM,
       repetitions);
   }
 }
@@ -154,19 +159,19 @@ bool X10ex::sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, 
   house -= house > 96 ? 97 : 65;
   unit--;
   // Validate input
-  if(house > 15 || (unit > 15 && unit != 255))
+  if(house > 0xF || (unit > 0xF && unit != 0xFF))
   {
     return 0;
   }
-  // Add house nibble (bit 1-4)
+  // Add house nibble (bit 32-29)
   uint32_t message = (uint32_t)HOUSE_CODE[house] << 28;
   // No unit code X10 message
-  if(unit == 255)
+  if(unit == 0xFF)
   {
     message |=
-      (uint32_t)command << 24 | // Add command nibble (bit 5-8)
-      (uint32_t)1 << 23 |       // Set message type bit (9) to 1 (command)
-      X10_MSG_CMD;              // Set data type bits (30-32)
+      (uint32_t)command << 24 | // Add command nibble (bit 28-25)
+      (uint32_t)1 << 23 |       // Set message type (bit 24) to 1 (command)
+      X10_MSG_CMD;              // Set data type (bit 3-1)
   }
   // Standard X10 message
   else if(command != CMD_EXTENDED_CODE && command != CMD_EXTENDED_DATA)
@@ -174,22 +179,22 @@ bool X10ex::sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, 
     // If type is preset dim send data, if not repeat house code
     uint8_t houseData = (command & B1110) == CMD_PRE_SET_DIM_0 ? extData : HOUSE_CODE[house];
     message |=
-      (uint32_t)UNIT_CODE[unit] << 24 | // Add unit nibble (bit 5-8)
-      (uint16_t)houseData << 8 |        // Add house/data nibble (bit 21-24)
-      (uint16_t)command << 4 |          // Add command nibble (25-28)
-      (uint8_t)1 << 3 |                 // Set message type bit (29) to 1 (command)
-      X10_MSG_STD;                      // Set data type bits (30-32)
+      (uint32_t)UNIT_CODE[unit] << 24 | // Add unit nibble (bit 28-25)
+      (uint16_t)houseData << 8 |        // Add house/data nibble (bit 12-9)
+      (uint16_t)command << 4 |          // Add command nibble (bit 8-5)
+      (uint8_t)1 << 3 |                 // Set message type (bit 4) to 1 (command)
+      X10_MSG_STD;                      // Set data type (bit 3-1)
   }
   // Extended X10 message
   else
   {
     message |=
-      (uint32_t)command << 24 |         // Add command nibble (5-8)
-      (uint32_t)1 << 23 |               // Set message type bit (9) to 1 (command)
-      (uint32_t)UNIT_CODE[unit] << 19 | // Add unit nibble (10-13)
-      (uint32_t)extData << 11 |         // Set extended data byte (14-21)
-      (uint16_t)extCommand << 3 |       // Set extended command byte (22-29)
-      X10_MSG_EXT;                      // Set data type bits (30-32)
+      (uint32_t)command << 24 |         // Add command nibble (bit 28-25)
+      (uint32_t)1 << 23 |               // Set message type (bit 24) to 1 (command)
+      (uint32_t)UNIT_CODE[unit] << 19 | // Add unit nibble (bit 23-20)
+      (uint32_t)extData << 11 |         // Set extended data byte (bit 19-12)
+      (uint16_t)extCommand << 3 |       // Set extended command byte (bit 11-4)
+      X10_MSG_EXT;                      // Set data type (bit 3-1)
   }
   // Current command is buffered again
   if(sendBf[sendBfStart].repetitions > 0 && sendBf[sendBfStart].message == message)
@@ -219,10 +224,6 @@ bool X10ex::sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, 
       sendBf[sendBfEnd].repetitions = repetitions;
       sendBfLastMs = millis();
       return 1;
-    }
-    else
-    {
-      Serial.println("S");
     }
   }
   return 0;
@@ -380,6 +381,7 @@ void X10ex::receiveMessage(bool input)
   {
     if(rxCommand != DATA_UNKNOWN)
     {
+      // Trigger receive callback
       plcReceiveCallback(
         findCodeIndex(HOUSE_CODE, rxHouse) + 65,
         findCodeIndex(UNIT_CODE, rxExtUnit != DATA_UNKNOWN ? rxExtUnit : rxUnit) + 1,
@@ -408,8 +410,12 @@ void X10ex::receiveStandardMessage()
   {
     rxCommand = CMD_PRE_SET_DIM_0;
     rxData =
-      ((((receiveBuffer * 0x0802LU & 0x22110LU) | (receiveBuffer * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16) & B1111) +
-      ((receiveBuffer & B0001) << 4);
+      (
+        // Get the four least significant bits in reverse (bit 8-5 => 1-4)
+        ((((receiveBuffer * 0x0802LU & 0x22110LU) | (receiveBuffer * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16) & B1111) +
+        // Add most significant bit (bit 1 => 5)
+        ((receiveBuffer & B0001) << 4)
+      ) * 2;
   }
   // Command (House + Command)
   else
@@ -450,7 +456,7 @@ void X10ex::clearReceiveBuffer()
 
 int8_t X10ex::findCodeIndex(const uint8_t codeList[16], uint8_t code)
 {
-  for(uint8_t i = 0; i < 16; i++)
+  for(uint8_t i = 0; i <= 0xF; i++)
   {
     if(codeList[i] == code) return i;
   }
