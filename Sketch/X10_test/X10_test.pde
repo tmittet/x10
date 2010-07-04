@@ -63,17 +63,21 @@ void loop()
     byte extCommand;
     // Convert lower case letters to upper case
     if(byte1 >= 0x61) byte1 -= 0x20;
-    // If not extended message convert ASCII 0-9... to decimal 0-16
+    // If not extended message convert ASCII 0-9 and A-F to decimal 0-15
     if(byte1 != 0x58)
     {
+      // Convert lower case letters to upper case
+      if(byte2 >= 0x61) byte2 -= 0x20;
       // 0123456789  =>  0-9
       if(byte2 >= 0x30 && byte2 <= 0x39) byte2 -= 0x30;
-      // ABCDEFG  =>  10-16
-      else if(byte2 >= 0x41 && byte2 <= 0x47) byte2 -= 37;
-      // 0123456789  =>  0-16
+      // ABCDEF  =>  10-15
+      else if(byte2 >= 0x41 && byte2 <= 0x46) byte2 -= 0x37;
+      // Convert lower case letters to upper case
+      if(byte3 >= 0x61) byte3 -= 0x20;
+      // 0123456789  =>  0-15
       if(byte3 >= 0x30 && byte3 <= 0x39) byte3 -= 0x30;
-      // ABCDEFG  =>  10-16
-      else if(byte3 >= 0x41 && byte3 <= 0x47) byte3 -= 37;
+      // ABCDEF  =>  10-15
+      else if(byte3 >= 0x41 && byte3 <= 0x46) byte3 -= 0x37;
     }
     // Check if standard message was received
     if(byte1 >= 0x41 && byte1 <= 0x50 && byte2 <= 16 && byte3 <= 0xF)
