@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.0.         */
+/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.1.         */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -14,7 +14,7 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu June 2010.                 */
+/* Written by Thomas Mittet thomas@mittet.nu July 2010.                 */
 /************************************************************************/
 
 #include "WProgram.h"
@@ -99,7 +99,7 @@ void X10ex::begin()
 
 bool X10ex::sendAddress(char house, uint8_t unit, uint8_t repetitions)
 {
-  // Using CMD_STATUS_REQUEST to address units (prepare for BRIGHT, DIM, etc.).
+  // Using CMD_STATUS_REQUEST to address modules (prepare for BRIGHT, DIM, etc.).
   // I've not seen any modules that reply to the request and even if they did
   // it would not cause any harm.
   return sendCmd(house, unit, CMD_STATUS_REQUEST, repetitions);
@@ -115,10 +115,10 @@ bool X10ex::sendCmd(char house, uint8_t unit, uint8_t command, uint8_t repetitio
   return sendExt(house, unit, command, 0, 0, repetitions);
 }
 
-// This does not work with any of the European units I've tested.
+// This does not work with any of the European modules I've tested.
 // I have no idea if it works at all, but it't part of the X10 standard.
-// If you're using a PLC interface and units that support extended code,
-// use the "sendExtDim" method in stead.
+// If you're using a PLC interface and modules that support extended
+// code, use the "sendExtDim" method in stead.
 bool X10ex::sendDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitions)
 {
   if(percent == 0)
@@ -230,6 +230,24 @@ bool X10ex::sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, 
     }
   }
   return 0;
+}
+
+X10state X10ex::getModuleState(char house, uint8_t unit)
+{
+  house -= house > 96 ? 97 : 65;
+  unit--;
+  bool isKnown = 0;
+  bool isOn = 0;
+  uint8_t data;
+  uint8_t stateIx = house << 4 | unit;
+  // Validate input
+  if(house <= 0xF && unit <= 0xF && moduleState[stateIx] >> 6 & B1)
+  {
+    isKnown = 1;
+    isOn = moduleState[stateIx] >> 7;
+    data = moduleState[stateIx] & B111111;
+  }
+  return (X10state) { isKnown, isOn, data };
 }
 
 void X10ex::zeroCross()
@@ -384,11 +402,14 @@ void X10ex::receiveMessage(bool input)
   {
     if(rxCommand != DATA_UNKNOWN)
     {
+      uint8_t houseIx = findCodeIndex(HOUSE_CODE, rxHouse);
+      uint8_t unitIx = findCodeIndex(UNIT_CODE, rxExtUnit != DATA_UNKNOWN ? rxExtUnit : rxUnit);
+      if(unitIx != 0xFF)
+      {
+        updateModuleState(houseIx << 4 | unitIx);
+      }
       // Trigger receive callback
-      plcReceiveCallback(
-        findCodeIndex(HOUSE_CODE, rxHouse) + 65,
-        findCodeIndex(UNIT_CODE, rxExtUnit != DATA_UNKNOWN ? rxExtUnit : rxUnit) + 1,
-        rxCommand, rxData, rxExtCommand, receivedBits);
+      plcReceiveCallback(houseIx + 65, unitIx + 1, rxCommand, rxData, rxExtCommand, receivedBits);
     }
     rxCommand = DATA_UNKNOWN;
     rxData = 0;
@@ -448,6 +469,60 @@ void X10ex::receiveExtendedMessage()
   {
     rxExtCommand = receiveBuffer;
     clearReceiveBuffer();
+  }
+}
+
+void X10ex::updateModuleState(uint8_t index)
+{
+  uint8_t stateData = moduleState[index] & B111111;
+  // Dim or bright; update brightness
+  if(rxCommand == CMD_DIM)
+  {
+    if(moduleState[index] >> 6 == B1)
+    {
+      stateData = 62;
+    }
+    else
+    {
+      stateData = stateData > 10 ? stateData - 10 : 1;
+    }
+  }
+  if(rxCommand == CMD_BRIGHT)
+  {
+    if(moduleState[index] >> 6 == B1)
+    {
+      stateData = 11;
+    }
+    else
+    {
+      stateData = stateData <= 52 ? stateData + 10 : 62;
+    }
+  }
+  // Off; update known and on bits
+  if(rxCommand == CMD_OFF || rxCommand == CMD_STATUS_OFF)
+  {
+    moduleState[index] |= B1000000;
+    moduleState[index] &= B1111111;
+  }
+  // On; update known and on bits and get brightness from buffer
+  if(rxCommand == CMD_DIM || rxCommand == CMD_BRIGHT || rxCommand == CMD_ON || rxCommand == CMD_STATUS_ON)
+  {
+    moduleState[index] = stateData | B11000000;
+    rxData = stateData;
+  }
+  // X10 standard or extended code message pre set dim commands
+  if((rxCommand & B1110) == CMD_PRE_SET_DIM_0 || (rxCommand == CMD_EXTENDED_CODE && rxExtCommand == EXC_PRE_SET_DIM))
+  {
+    if(rxData > 0)
+    {
+      moduleState[index] = rxData | B1000000 | ((rxData > 0) << 7);
+    }
+    // Dim level 0; set known and off bits only
+    else
+    {
+      moduleState[index] |= B1000000;
+      moduleState[index] &= B1111111;
+    }
   }
 }
 

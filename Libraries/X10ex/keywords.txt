@@ -7,6 +7,7 @@
 #######################################
 
 X10ex	KEYWORD1
+X10state	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -18,6 +19,7 @@ sendCmd	KEYWORD2
 sendDim	KEYWORD2
 sendExt	KEYWORD2
 sendExtDim	KEYWORD2
+getModuleState	KEYWORD2
 
 ######################################
 # Instances (KEYWORD2)

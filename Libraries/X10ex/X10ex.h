@@ -76,6 +76,14 @@ struct X10msg
   uint8_t repetitions;
 };
 
+// Used when returning module state
+struct X10state
+{
+  bool isKnown;
+  bool isOn;
+  uint8_t data;
+};
+
 class X10ex
 {
 
@@ -95,6 +103,7 @@ class X10ex
     bool sendDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitions);
     bool sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t time, uint8_t repetitions);
     bool sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, uint8_t extCommand, uint8_t repetitions);
+    X10state getModuleState(char house, uint8_t unit);
     void zeroCross();
   
   private:
@@ -113,11 +122,14 @@ class X10ex
     uint8_t receivedCount, receivedBits, receiveBuffer;
     bool receivedDataBit;
     uint8_t rxHouse, rxUnit, rxExtUnit, rxCommand, rxData, rxExtCommand;
+    // State stored in byte (8=On/Off, 7=State Known/Unknown, 6-1 data)
+    uint8_t moduleState[256];
     // Private methods
     bool getBitToSend();
     void receiveMessage(bool input);
     void receiveStandardMessage();
     void receiveExtendedMessage();
+    void updateModuleState(uint8_t index);
     void clearReceiveBuffer();
     int8_t findCodeIndex(const uint8_t codeList[16], uint8_t code);
 };
