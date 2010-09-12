@@ -14,7 +14,7 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu July 2010.                 */
+/* Written by Thomas Mittet thomas@mittet.nu September 2010.            */
 /************************************************************************/
 
 #include <X10ex.h>
@@ -52,6 +52,12 @@ void setup()
 
 void loop()
 {
+  processSdMessage();
+}
+
+// Process serial data messages received from computer over USB, Bluetooth, e.g.
+void processSdMessage()
+{
   // Serial messages must be 3 or 6 bytes long
   // Bytes must be sent within one second from the first to the last
   // To understand the format, looking up an ASCII table is a good start
@@ -71,76 +77,54 @@ void loop()
     byte extData;
     byte extCommand;
     // Convert lower case letters to upper case
-    if(byte1 >= 0x61) byte1 -= 0x20;
-    // If not extended message convert byte 2 ASCII 0-9 and A-F to decimal 0-15
-    if(byte1 != 0x58)
+    byte1 = charToUpper(byte1);
+    // If not extended message convert byte 2 and 3 ASCII 0-9 and A-F to decimal 0-15
+    if(byte1 != 'X')
     {
-      // Convert lower case letters to upper case
-      if(byte2 >= 0x61) byte2 -= 0x20;
-      // No conversion for status requests, since byte 2 is used as house code
-      if(byte1 != 0x52)
-      {
-        // 0123456789  =>  0-9
-        if(byte2 >= 0x30 && byte2 <= 0x39) byte2 -= 0x30;
-        // ABCDEF  =>  10-15
-        else if(byte2 >= 0x41 && byte2 <= 0x46) byte2 -= 0x37;
-      }
+      // No byte 2 hex to decimal conversion for status requests, since byte 2 is used as house code
+      byte2 = byte1 == 'R' ? charToUpper(byte2) : charHexToDecimal(byte2);
+      byte3 = charHexToDecimal(byte3);
     }
-    // If not extended message convert byte 3 ASCII 0-9 and A-F to decimal 0-15
-    if(byte1 != 0x58)
+    // Check if standard message was received (byte1 = House, byte2 = Unit, byte3 = Command)
+    if(byte1 >= 'A' && byte1 <= 'P' && byte2 <= 16 && byte3 <= 0xF)
     {
-      // Convert lower case letters to upper case
-      if(byte3 >= 0x61) byte3 -= 0x20;
-      // 0123456789  =>  0-15
-      if(byte3 >= 0x30 && byte3 <= 0x39) byte3 -= 0x30;
-      // ABCDEF  =>  10-15
-      else if(byte3 >= 0x41 && byte3 <= 0x46) byte3 -= 0x37;
-    }
-    // Check if standard message was received
-    if(byte1 >= 0x41 && byte1 <= 0x50 && byte2 <= 16 && byte3 <= 0xF)
-    {
+      // Store first 3 bytes of message to make it possible to process 6 byte serial messages
       scHouse = byte1;
       scUnit = byte2;
       scCommand = byte3;
-      // Send standard message
-      if(scCommand != B0111 && scCommand != B1100)
+      // Send standard message if command type is not extended
+      if(scCommand != CMD_EXTENDED_CODE && scCommand != CMD_EXTENDED_DATA)
       {
         printX10Message(SERIAL_DATA_MSG, scHouse, scUnit, scCommand, 0, 0, 8 * Serial.available());
-        x10ex.sendCmd(scHouse, scUnit, scCommand, 2);
+        // Check if command is handled by scenario, if not continue
+        if(!handleUnitScenario(scHouse, scUnit, scCommand, 0))
+        {
+          x10ex.sendCmd(scHouse, scUnit, scCommand, 2);
+        }        
         scHouse = 0;
         Serial.flush();
       }
     }
-    // Check if extended message was received (Extended seperator X = 0x58)
-    else if(byte1 == 0x58 && byte3 && scHouse && (scCommand == B0111 || scCommand == B1100))
+    // Check if extended message was received (byte1 = Extended Seperator, byte2 = Extended Data, byte3 = Extended Command)
+    else if(byte1 == 'X' && byte3 && scHouse && (scCommand == CMD_EXTENDED_CODE || scCommand == CMD_EXTENDED_DATA))
     {
       printX10Message(SERIAL_DATA_MSG, scHouse, scUnit, scCommand, byte2, byte3, 8 * Serial.available());
       x10ex.sendExt(scHouse, scUnit, scCommand, byte2, byte3, 2);
       scHouse = 0;
       Serial.flush();
     }
-    // Check if scenario execute was received (Scenario seperator S = 0x53)
-    else if(byte1 == 0x53 && byte2 <= 9 && byte3 <= 9)
+    // Check if scenario execute was received (byte1 = Scenario Seperator, byte2 = Decimal * 10, byte3 = Decimal)
+    else if(byte1 == 'S' && byte2 <= 9 && byte3 <= 9)
     {
       byte scenario = byte2 * 10 + byte3;
       Serial.print(SERIAL_DATA_MSG);
       Serial.print("SCENARIO_");
       Serial.println(scenario, DEC);
-      switch(scenario)
-      {
-        case 01: sendAllLightsOn(); break;
-        case 02: sendHallAndKitchenOn(); break;
-        case 03: sendLivingRoomOn(); break;
-        case 04: sendLivingRoomTvScenario(); break;
-        case 05: sendLivingRoomMovieScenario(); break;
-        case 11: sendAllLightsOff(); break;
-        case 12: sendHallAndKitchenOff(); break;
-        case 13: sendLivingRoomOff(); break;
-      }
+      handleSdScenario(scenario);
       Serial.flush();
     }
-    // Check if module status request was received (Request modstate seperator R = 0x52)
-    else if(byte1 == 0x52 && byte2 >= 0x41 && byte2 <= 0x50 && byte3 > 0 && byte3 <= 16)
+    // Check if module status request was received (byte1 = Status Request Seperator, byte2 = House, byte3 = Unit)
+    else if(byte1 == 'R' && byte2 >= 'A' && byte2 <= 'P' && byte3 > 0 && byte3 <= 16)
     {
       Serial.print(SERIAL_DATA_MSG);
       Serial.print("REQUEST_MODSTATE_");
@@ -177,11 +161,13 @@ void loop()
   }
 }
 
+// Process messages received from X10 modules over the power line
 void processPlMessage(char house, byte unit, byte command, byte extData, byte extCommand, byte remainingBits)
 {
   printX10Message(POWER_LINE_MSG, house, unit, command, extData, extCommand, remainingBits);
 }
 
+// Process commands received from X10 compatible RF remote
 void processRfCommand(char house, byte unit, byte command, bool isRepeat)
 {
   if(!isRepeat)
@@ -189,7 +175,7 @@ void processRfCommand(char house, byte unit, byte command, bool isRepeat)
     printX10Message(RADIO_FREQ_MSG, house, unit, command, 0, 0, 0);
   }
   // Check if command is handled by scenario, if not continue
-  if(!handleScenario(unit, command, isRepeat))
+  if(!handleUnitScenario(house, unit, command, isRepeat))
   {
     // Other commands map directly, just forward to PL interface
     // Make sure that two repetitions or more are used for bright and dim,
@@ -198,6 +184,7 @@ void processRfCommand(char house, byte unit, byte command, bool isRepeat)
   }
 }
 
+// Process commands received from X10 compatible IR remote
 void processIrCommand(char house, byte unit, byte command, bool isRepeat)
 {
   if(!isRepeat)
@@ -205,7 +192,7 @@ void processIrCommand(char house, byte unit, byte command, bool isRepeat)
     printX10Message(INFRARED_MSG, house, unit, command, 0, 0, 0);
   }
   // Check if command is handled by scenario, if not continue
-  if(!handleScenario(unit, command, isRepeat))
+  if(!handleUnitScenario(house, unit, command, isRepeat))
   {
     // Handle Address Command (House + Unit)
     if(command == CMD_ADDRESS)
@@ -254,7 +241,8 @@ void printX10Message(const char type[], char house, byte unit, byte command, byt
       printX10Brightness(extData);
       break;
     case CMD_OFF:
-      Serial.println("_OFF");
+      Serial.print("_OFF");
+      printX10Brightness(extData);
       break;
     case CMD_DIM:
       Serial.println("_DIM");
@@ -331,8 +319,59 @@ void printX10Brightness(uint8_t extData)
   }
 }
 
-bool handleScenario(byte unit, byte command, bool isRepeat)
+byte charToUpper(byte input)
 {
+  if(input >= 0x61) input -= 0x20;
+  // Return converted byte
+  return input;  
+}
+
+byte charHexToDecimal(byte input)
+{
+  // Make sure all characters are upper case
+  input = charToUpper(input);
+  // 0123456789  =>  0-15
+  if(input >= 0x30 && input <= 0x39) input -= 0x30;
+  // ABCDEF  =>  10-15
+  else if(input >= 0x41 && input <= 0x46) input -= 0x37;
+  // Return converted byte
+  return input;
+}
+
+// Handles scenario execute commands received as serial data message
+void handleSdScenario(byte scenario)
+{
+  switch(scenario)
+  {
+    case 01: sendAllLightsOn(); break;
+    case 02: sendHallAndKitchenOn(); break;
+    case 03: sendLivingRoomOn(); break;
+    case 04: sendLivingRoomTvScenario(); break;
+    case 05: sendLivingRoomMovieScenario(); break;
+    case 11: sendAllLightsOff(); break;
+    case 12: sendHallAndKitchenOff(); break;
+    case 13: sendLivingRoomOff(); break;
+  }
+}
+
+// Handles scenarios triggered when receiving unit on/off commands
+// Use this method to trigger scenarios from simple RF/IR remotes
+bool handleUnitScenario(char house, byte unit, byte command, bool isRepeat)
+{
+  // Ignore all house codes except A
+  if(house != 'A')
+  {
+    return 0;
+  }
+  
+  // Unit 4 is an old X10 lamp module that doesn't remember state on its own, use the
+  // following method to revert to buffered state when these modules are turned on
+  if(unit == 4)
+  {
+    handleOldLampModuleState(house, unit, command, isRepeat);
+  }
+  
+  // Unit 5 is a placeholder unit code used by RF and IR remotes that triggers HallAndKitchen scenario
   if(unit == 5)
   {
     if(!isRepeat)
@@ -347,6 +386,7 @@ bool handleScenario(byte unit, byte command, bool isRepeat)
       }
     }
   }
+  // Unit 10 is a placeholder unit code used by RF and IR remotes that triggers AllLights scenario
   else if(unit == 10)
   {
     if(!isRepeat)
@@ -361,6 +401,7 @@ bool handleScenario(byte unit, byte command, bool isRepeat)
       }
     }
   }
+  // Unit 11 is a placeholder unit code used by RF and IR remotes that triggers LivingRoom scenario
   else if(unit == 11)
   {
     if(!isRepeat)
@@ -375,6 +416,7 @@ bool handleScenario(byte unit, byte command, bool isRepeat)
       }
     }
   }
+  // Unit 12 is a placeholder unit code used by RF and IR remotes that triggers LivingRoomTv scenario
   else if(unit == 12)
   {
     if(!isRepeat)
@@ -389,6 +431,7 @@ bool handleScenario(byte unit, byte command, bool isRepeat)
       }
     }
   }
+  // Unit 13 is a placeholder unit code used by RF and IR remotes that triggers LivingRoomMovie scenario
   else if(unit == 13)
   {
     if(!isRepeat)
@@ -409,6 +452,24 @@ bool handleScenario(byte unit, byte command, bool isRepeat)
   }
   return 1;
 }
+
+// Handles old X10 lamp modules that don't remember state on their own
+void handleOldLampModuleState(char house, byte unit, byte command, bool isRepeat)
+{
+  if(command == CMD_ON && !isRepeat)
+  {
+    // Get state from buffer and set it to last brightness when turning on
+    X10state state = x10ex.getModuleState(house, unit);
+    if(state.isKnown && !state.isOn && state.data > 0)
+    {
+      x10ex.sendExt(house, unit, CMD_EXTENDED_CODE, state.data, EXC_PRE_SET_DIM, 1);
+    }
+  }
+}
+
+////////////////
+// Scenarios
+////////////////
 
 void sendAllLightsOn()
 {
