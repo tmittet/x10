@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 X10 PLC, RF, IR library test sketch, v1.1.                       */
+/* X10 X10 PLC, RF, IR library test sketch, v1.2.                       */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -35,8 +35,8 @@ char scHouse;
 byte scUnit;
 byte scCommand;
 
-// zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true
-X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage);
+// zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true, phases = 2, sineWaveHz = 50
+X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage, 2, 50);
 // receiveInt = 0 (external interrupt), receivePin = 2
 X10rf x10rf = X10rf(0, 2, processRfCommand);
 // receiveInt = 1 (external interrupt), receivePin = 3, defaultHouse = 'A'
@@ -69,6 +69,7 @@ void processSdMessage()
   // Scenario execute: S03 (Execute scenario 3)
   // Scenario execute: S14 (Execute scenario 14)
   // Request modstate: RA2 (Request buffered state of module A2)
+  // Wipe modulestate: RWX (Wipe state data for all modules)
   if(Serial.available() >= 3)
   {
     byte byte1 = Serial.read();
@@ -134,6 +135,12 @@ void processSdMessage()
       byte command = state.isKnown ? state.isOn ? CMD_ON : CMD_OFF : DATA_UNKNOWN;
       printX10Message(MODULE_STATE_MSG, byte2, byte3, command, state.data, 0, 0);
       Serial.flush();
+    }
+    else if(byte1 == 'R' && byte2 == 'W' && byte3 == 'X')
+    {
+      Serial.print(SERIAL_DATA_MSG);
+      Serial.println("WIPE_MODSTATE");
+      x10ex.wipeModuleState();
     }
     // Unknown data
     else
