@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.1.         */
+/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.2.         */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -14,11 +14,12 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu July 2010.                 */
+/* Written by Thomas Mittet thomas@mittet.nu September 2010.            */
 /************************************************************************/
 
 #include "WProgram.h"
 #include "pins_arduino.h"
+#include <avr/eeprom.h>
 #include "X10ex.h"
 
 const uint8_t X10ex::HOUSE_CODE[16] =
@@ -53,6 +54,19 @@ SIGNAL(PCINT2_vect)
 }
 #endif
 
+void x10exIoTimer_wrapper()
+{
+  if(x10exInstance)
+  {
+    x10exInstance->ioTimer();
+  }
+}
+
+ISR(TIMER1_OVF_vect)
+{
+  x10exIoTimer_wrapper();
+}
+
 X10ex::X10ex(
   uint8_t zeroCrossInt, uint8_t zeroCrossPin, uint8_t transmitPin,
   uint8_t receivePin, bool receiveTransmits, plcReceiveCallback_t plcReceiveCallback,
@@ -66,8 +80,13 @@ X10ex::X10ex(
   this->receiveBitMask = digitalPinToBitMask(receivePin);
   this->receiveTransmits = receiveTransmits;
   this->plcReceiveCallback = plcReceiveCallback;
-  this->phases = phases;
-  this->sineWaveHz = sineWaveHz;
+  // Setup IO fields
+  ioStopState = phases * 2;
+  inputAtCycles = round(.5 * F_CPU * X10_SAMPLE_DELAY / 1000000);
+  // Sine wave half cycle devided by number of phases
+  outputStartCycles = round(.5 * F_CPU / phases / sineWaveHz / 2);
+  outputStopCycles = round(.5 * F_CPU * X10_SIGNAL_LENGTH / 1000000);
+  // Init. misc fields
   sendBfEnd = X10_BUFFER_SIZE - 1;
   rxHouse = DATA_UNKNOWN;
   rxUnit = DATA_UNKNOWN;
@@ -87,6 +106,12 @@ void X10ex::begin()
   digitalWrite(receivePin, HIGH);
   pinMode(receivePin, INPUT);
   attachInterrupt(zeroCrossInt, x10exZeroCross_wrapper, CHANGE);
+  // Setup IO timer
+  TCCR1A = 0;
+  TIMSK1 = _BV(TOIE1);
+  TCCR1B = _BV(WGM13) & ~(_BV(CS10) | _BV(CS11) | _BV(CS12));
+  ICR1 = inputAtCycles;
+  sei();
   // Hack to get extra interrupt on non ATmega1280 pin 4
 #if not defined(__AVR_ATmega1280__)
   if(zeroCrossInt == 2 && zeroCrossPin == 4)
@@ -241,71 +266,108 @@ X10state X10ex::getModuleState(char house, uint8_t unit)
   uint8_t data;
   uint8_t stateIx = house << 4 | unit;
   // Validate input
-  if(house <= 0xF && unit <= 0xF && moduleState[stateIx] >> 6 & B1)
+#if X10_PERSIST_STATE
+  uint8_t state = eeprom_read_byte((unsigned char *)stateIx) + 1;
+#else
+  uint8_t state = moduleState[stateIx];
+#endif
+  if(house <= 0xF && unit <= 0xF && state >> 6 & B1)
   {
     isKnown = 1;
-    isOn = moduleState[stateIx] >> 7;
-    data = moduleState[stateIx] & B111111;
+    isOn = state >> 7;
+    data = state & B111111;
   }
   return (X10state) { isKnown, isOn, data };
 }
 
+void X10ex::wipeModuleState()
+{
+  for(int i = 0; i < 256; i++)
+  {
+#if X10_PERSIST_STATE
+    eeprom_write_byte((unsigned char *)i, 255);
+#else
+    moduleState[i] = 0;
+#endif
+  }
+}
+
 void X10ex::zeroCross()
 {
-  bool output = 0;
-  bool input = 0;
-  // Send message
+  zcOutput = 0;
+  zcInput = 0;
+  // Start IO timer
+  TCCR1B |= _BV(CS10);
+  TCNT1 = 1;
+  ioState = 1;
+  // Get bit to output from buffer
   if(sendBf[sendBfStart].repetitions && (zeroCount > X10_PRE_CMD_CYCLES || sentCount))
   {
-    output = getBitToSend();
+    zcOutput = getBitToSend();
   }
-  // Start output
-  if(output)
+  if(zcOutput)
   {
     digitalWrite(transmitPin, HIGH);
   }
-  // Get input
-  delayMicroseconds(X10_SAMPLE_DELAY);
-  input = receiveTransmits || !sendBf[sendBfStart].repetitions ? !(*portInputRegister(receivePort) & receiveBitMask) : 0;
-  // End output
-  if(output)
+}
+
+void X10ex::ioTimer()
+{
+  if(ioState)
   {
-    delayMicroseconds(X10_SIGNAL_LENGTH - X10_SAMPLE_DELAY);
-    digitalWrite(transmitPin, LOW);
-    // Repeat output for each additional phase
-    for(int i = 1; sineWaveHz && i < phases; i++)
+    // Input
+    if(ioState == 1)
     {
-      delayMicroseconds(round(1000000.0 / (phases * sineWaveHz * 2)) - X10_SIGNAL_LENGTH);
-      digitalWrite(transmitPin, HIGH);
-      delayMicroseconds(X10_SIGNAL_LENGTH);
+      ICR1 = outputStopCycles - inputAtCycles;
+      zcInput = receiveTransmits || !sendBf[sendBfStart].repetitions ? !(*portInputRegister(receivePort) & receiveBitMask) : 0;
+    }
+    // Stop timer, output low and check receive
+    else if((ioState == 2 && !zcOutput) || ioState == ioStopState)
+    {
+      ICR1 = inputAtCycles;
       digitalWrite(transmitPin, LOW);
+      TCCR1B &= ~_BV(CS10);
+      ioState = -1;
+      // If start sequence is found, receive message
+      if(receivedCount)
+      {
+        receiveMessage();
+      }
+      // Search for start sequence and keep track of silence
+      else
+      {
+        // If we receive a one; increment bit count
+        if(zcInput)
+        {
+          zeroCount = 0;
+          receivedBits++;
+        }
+        else
+        {
+          // 3 consecutive ones is the startcode
+          if(receivedBits == 3 && plcReceiveCallback)
+          {
+            // We have reached zero crossing 4 after startcode; set it to start receiving message
+            receivedCount = 4;
+          }
+          receivedBits = 0;
+          zeroCount += zeroCount == 255 ? 0 : 1;
+        }
+      }
     }
-  }
-  // If start sequence is found, receive message
-  if(receivedCount)
-  {
-    receiveMessage(input);
-  }
-  // Search for start sequence and keep track of silence
-  else
-  {
-    // If we receive a one; increment bit count
-    if(input)
+    // Output set High
+    else if(ioState % 2)
     {
-      zeroCount = 0;
-      receivedBits++;
+      ICR1 = outputStopCycles;
+      digitalWrite(transmitPin, HIGH);
     }
+    // Output set Low
     else
     {
-      // 3 consecutive ones is the startcode
-      if(receivedBits == 3 && plcReceiveCallback)
-      {
-        // We have reached zero crossing 4 after startcode; set it to start receiving message
-        receivedCount = 4;
-      }
-      receivedBits = 0;
-      zeroCount += zeroCount == 255 ? 0 : 1;
+      ICR1 = outputStartCycles - outputStopCycles;
+      digitalWrite(transmitPin, LOW);
     }
+    ioState++;
   }
 }
 
@@ -369,16 +431,16 @@ bool X10ex::getBitToSend()
   return output;
 }
 
-void X10ex::receiveMessage(bool input)
+void X10ex::receiveMessage()
 {
   receivedCount++;
   // Get data bit (odd)
   if(receivedCount % 2)
   {
-    receivedDataBit = input;
+    receivedDataBit = zcInput;
   }
   // If data bit complement (even) is correct
-  else if(receivedDataBit != input) 
+  else if(receivedDataBit != zcInput) 
   {
     receivedBits++;
     // Buffer one byte
@@ -474,40 +536,45 @@ void X10ex::receiveExtendedMessage()
 
 void X10ex::updateModuleState(uint8_t index)
 {
-  uint8_t stateData = moduleState[index] & B111111;
+#if X10_PERSIST_STATE
+  uint8_t state = eeprom_read_byte((unsigned char *)index) + 1;
+#else
+  uint8_t state = moduleState[index];
+#endif
+  uint8_t stateData = state & B111111;
   // Dim or bright; update brightness
   if(rxCommand == CMD_DIM)
   {
-    if(moduleState[index] >> 6 == B1)
+    if(state >> 6 == B1)
     {
       stateData = 62;
     }
     else
     {
-      stateData = stateData > 10 ? stateData - 10 : 1;
+      stateData = stateData > 9 ? stateData - 9 : 1;
     }
   }
   if(rxCommand == CMD_BRIGHT)
   {
-    if(moduleState[index] >> 6 == B1)
+    if(state >> 6 == B1)
     {
       stateData = 11;
     }
     else
     {
-      stateData = stateData <= 52 ? stateData + 10 : 62;
+      stateData = stateData <= 53 ? stateData + 9 : 62;
     }
   }
   // Off; update known and on bits
   if(rxCommand == CMD_OFF || rxCommand == CMD_STATUS_OFF)
   {
-    moduleState[index] |= B1000000;
-    moduleState[index] &= B1111111;
+    state |= B1000000;
+    state &= B1111111;
   }
   // On; update known and on bits and get brightness from buffer
   if(rxCommand == CMD_DIM || rxCommand == CMD_BRIGHT || rxCommand == CMD_ON || rxCommand == CMD_STATUS_ON)
   {
-    moduleState[index] = stateData | B11000000;
+    state = stateData | B11000000;
     rxData = stateData;
   }
   // X10 standard or extended code message pre set dim commands
@@ -515,15 +582,20 @@ void X10ex::updateModuleState(uint8_t index)
   {
     if(rxData > 0)
     {
-      moduleState[index] = rxData | B1000000 | ((rxData > 0) << 7);
+      state = rxData | B1000000 | ((rxData > 0) << 7);
     }
     // Dim level 0; set known and off bits only
     else
     {
-      moduleState[index] |= B1000000;
-      moduleState[index] &= B1111111;
+      state |= B1000000;
+      state &= B1111111;
     }
   }
+#if X10_PERSIST_STATE
+  eeprom_write_byte((unsigned char *)index, state - 1);
+#else
+  moduleState[index] = state;
+#endif
 }
 
 void X10ex::clearReceiveBuffer()

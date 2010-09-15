@@ -20,6 +20,7 @@ sendDim	KEYWORD2
 sendExt	KEYWORD2
 sendExtDim	KEYWORD2
 getModuleState	KEYWORD2
+wipeModuleState	KEYWORD2
 
 ######################################
 # Instances (KEYWORD2)
