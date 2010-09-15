@@ -22,10 +22,11 @@
 #include <X10ir.h>
 
 #define SERIAL_DATA_MSG "SD_"
-#define SERIAL_DATA_TIMEOUT "SD_TIMEOUT"
-#define SERIAL_DATA_ERROR "SD_ERROR"
+#define SERIAL_DATA_TIMEOUT "SD_X_TIMEOUT"
+#define SERIAL_DATA_ERROR "SD_X_ERROR"
 #define MODULE_STATE_MSG "MS_"
 #define POWER_LINE_MSG "PL_"
+#define POWER_LINE_ERROR_BITS "_ERROR_UNEXPECTEDBITS_"
 #define RADIO_FREQ_MSG "RF_"
 #define INFRARED_MSG "IR_"
 
@@ -35,8 +36,8 @@ char scHouse;
 byte scUnit;
 byte scCommand;
 
-// zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true, phases = 2, sineWaveHz = 50
-X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage, 2, 50);
+// zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true, phases = 1, sineWaveHz = 50
+X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage, 1, 50);
 // receiveInt = 0 (external interrupt), receivePin = 2
 X10rf x10rf = X10rf(0, 2, processRfCommand);
 // receiveInt = 1 (external interrupt), receivePin = 3, defaultHouse = 'A'
@@ -119,7 +120,7 @@ void processSdMessage()
     {
       byte scenario = byte2 * 10 + byte3;
       Serial.print(SERIAL_DATA_MSG);
-      Serial.print("SCENARIO_");
+      Serial.print("X_SCENARIO_EXEC_");
       Serial.println(scenario, DEC);
       handleSdScenario(scenario);
       Serial.flush();
@@ -127,10 +128,8 @@ void processSdMessage()
     // Check if module status request was received (byte1 = Status Request Seperator, byte2 = House, byte3 = Unit)
     else if(byte1 == 'R' && byte2 >= 'A' && byte2 <= 'P' && byte3 > 0 && byte3 <= 16)
     {
-      Serial.print(SERIAL_DATA_MSG);
-      Serial.print("REQUEST_MODSTATE_");
-      Serial.print(byte2);
-      Serial.println(byte3, DEC);
+      printX10TypeHouseUnit(SERIAL_DATA_MSG, byte2, byte3, DATA_UNKNOWN);
+      Serial.println("_RSTATE");
       X10state state = x10ex.getModuleState(byte2, byte3);
       byte command = state.isKnown ? state.isOn ? CMD_ON : CMD_OFF : DATA_UNKNOWN;
       printX10Message(MODULE_STATE_MSG, byte2, byte3, command, state.data, 0, 0);
@@ -139,7 +138,7 @@ void processSdMessage()
     else if(byte1 == 'R' && byte2 == 'W' && byte3 == 'X')
     {
       Serial.print(SERIAL_DATA_MSG);
-      Serial.println("WIPE_MODSTATE");
+      Serial.println("X_WIPESTATE");
       x10ex.wipeModuleState();
     }
     // Unknown data
@@ -218,18 +217,7 @@ void processIrCommand(char house, byte unit, byte command, bool isRepeat)
 
 void printX10Message(const char type[], char house, byte unit, byte command, byte extData, byte extCommand, int remainingBits)
 {
-  Serial.print(type);
-  Serial.print(house);
-  if(
-    unit &&
-    unit != DATA_UNKNOWN &&
-    command != CMD_ALL_UNITS_OFF &&
-    command != CMD_ALL_LIGHTS_ON &&
-    command != CMD_ALL_LIGHTS_OFF &&
-    command != CMD_HAIL_REQUEST)
-  {
-    Serial.print(unit, DEC);
-  }
+  printX10TypeHouseUnit(type, house, unit, command);
   switch(command)
   {
     // This is not a real X10 command, it's a special command used by the IR
@@ -245,11 +233,10 @@ void printX10Message(const char type[], char house, byte unit, byte command, byt
       break;
     case CMD_ON:
       Serial.print("_ON");
-      printX10Brightness(extData);
+      printX10Brightness("_BRI", extData);
       break;
     case CMD_OFF:
-      Serial.print("_OFF");
-      printX10Brightness(extData);
+      Serial.println("_OFF");
       break;
     case CMD_DIM:
       Serial.println("_DIM");
@@ -271,8 +258,7 @@ void printX10Message(const char type[], char house, byte unit, byte command, byt
       break;
     case CMD_PRE_SET_DIM_0:
     case CMD_PRE_SET_DIM_1:
-      Serial.print("_PSD");
-      printX10Brightness(extData);
+      printX10Brightness("_PSD", extData);
       break;
     case CMD_EXTENDED_DATA:
       Serial.print("_EXD");
@@ -295,8 +281,7 @@ void printX10Message(const char type[], char house, byte unit, byte command, byt
     switch(extCommand)
     {
       case EXC_PRE_SET_DIM:
-        Serial.print("_PSD");
-        printX10Brightness(extData);
+        printX10Brightness("_PSD", extData);
         break;
       default:
         Serial.print("_");
@@ -307,16 +292,33 @@ void printX10Message(const char type[], char house, byte unit, byte command, byt
   }
   if(remainingBits)
   {
-    Serial.print("DEBUG: ");
-    Serial.print(remainingBits, DEC);
-    Serial.println(" UNEXPECTED BITS RECEIVED.");
+    printX10TypeHouseUnit(type, house, unit, command);
+    Serial.println(POWER_LINE_ERROR_BITS);
+    Serial.println(remainingBits, DEC);
   }
 }
 
-void printX10Brightness(uint8_t extData)
+void printX10TypeHouseUnit(const char type[], char house, byte unit, byte command)
+{
+  Serial.print(type);
+  Serial.print(house);
+  if(
+    unit &&
+    unit != DATA_UNKNOWN &&
+    command != CMD_ALL_UNITS_OFF &&
+    command != CMD_ALL_LIGHTS_ON &&
+    command != CMD_ALL_LIGHTS_OFF &&
+    command != CMD_HAIL_REQUEST)
+  {
+    Serial.print(unit, DEC);
+  }
+}
+
+void printX10Brightness(const char source[], byte extData)
 {
   if(extData > 0)
   {
+    Serial.print(source);
     Serial.print("_");
     Serial.println(round((extData & B111111) * 100 / 62.0), DEC);
   }
