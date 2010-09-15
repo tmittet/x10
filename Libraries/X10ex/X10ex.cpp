@@ -304,10 +304,10 @@ void X10ex::zeroCross()
   if(sendBf[sendBfStart].repetitions && (zeroCount > X10_PRE_CMD_CYCLES || sentCount))
   {
     zcOutput = getBitToSend();
-  }
-  if(zcOutput)
-  {
-    digitalWrite(transmitPin, HIGH);
+    if(zcOutput)
+    {
+      digitalWrite(transmitPin, HIGH);
+    }
   }
 }
 
