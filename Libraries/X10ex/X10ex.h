@@ -28,19 +28,26 @@
 #define X10_SAMPLE_DELAY    500
 // Signal length should be set to 1000us according to spec
 #define X10_SIGNAL_LENGTH  1000
-// Set buffer size to the number of individual messages you would
-// like to buffer, plus one. The buffer is useful when triggering
-// a scenario e.g. Each slot in the buffer uses 5 bytes of memory
+// Set buffer size to the number of individual messages you would like to
+// buffer, plus one. The buffer is useful when triggering a scenario e.g.
+// Each slot in the buffer uses 5 bytes of memory
 #define X10_BUFFER_SIZE      16
-// Set the min delay between buffering of two identical messages
+// Set the min delay, in ms, between buffering of two identical messages
 // This delay does not affect message repeats (when button is held)
 #define X10_REBUFFER_DELAY  500
-// When set to 1 module state data is stored in EEPROM. When set to
-// 0 data is stored in volatile memory and cleared on reboot
+// When set to 1: module state data is stored in EEPROM. When set to 2:
+// data is stored in volatile memory and cleared on reboot. When set to 0:
+// state isn't stored at all and compiler ignores state code
 #define X10_PERSIST_STATE     1
+// Enable this to use X10 standard message PRE_SET_DIM commands.
+// PRE_SET_DIM commands do not work with any of the European modules I've
+// tested. I have no idea if it works at all, but it's part of the X10
+// standard. If you're using a PLC interface and modules that support
+// extended code: use the "sendExtDim" method in stead.
+#define X10_USE_PRE_SET_DIM   0
 
 // These are message buffer data types used to seperate X10 standard
-// message format from extended message format e.g.
+// message format from extended message format, e.g.
 #define X10_MSG_STD B001
 #define X10_MSG_CMD B010
 #define X10_MSG_EXT B011
@@ -90,7 +97,7 @@ class X10ex
 
   public:
     typedef void (*plcReceiveCallback_t)(char, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
-    // Phase retransmits not needed on European systems using the XM10 PLC interface
+    // Phase retransmits not needed on European systems using the XM10 PLC interface,
     // so the phases and sineWaveHz parameters are optional and defaults to 1 and 50.
     X10ex(
       uint8_t zeroCrossInt, uint8_t zeroCrossPin, uint8_t transmitPin,
@@ -101,7 +108,9 @@ class X10ex
     bool sendAddress(char house, uint8_t unit, uint8_t repetitions);
     bool sendCmd(char house, uint8_t command, uint8_t repetitions);
     bool sendCmd(char house, uint8_t unit, uint8_t command, uint8_t repetitions);
+#if X10_USE_PRE_SET_DIM
     bool sendDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitions);
+#endif
     bool sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t time, uint8_t repetitions);
     bool sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, uint8_t extCommand, uint8_t repetitions);
     X10state getModuleState(char house, uint8_t unit);
@@ -113,24 +122,24 @@ class X10ex
     static const uint8_t HOUSE_CODE[16];
     static const uint8_t UNIT_CODE[16];
     // Set in constructor
-    uint8_t zeroCrossInt, zeroCrossPin, transmitPin, receivePin, receivePort, receiveBitMask, ioStopState;
-	  uint16_t inputAtCycles, outputStartCycles, outputStopCycles;
+    uint8_t zeroCrossInt, zeroCrossPin, transmitPin, transmitPort, transmitBitMask, receivePin, receivePort, receiveBitMask, ioStopState;
+	  uint16_t inputDelayCycles, outputDelayCycles, outputLengthCycles;
     bool receiveTransmits;
     plcReceiveCallback_t plcReceiveCallback;
-	  // Transmit/Receive fields
+	  // Transmit and receive fields
     int8_t ioState;
+    volatile bool zcInput, zcOutput;
     // Transmit fields
     X10msg volatile sendBf[X10_BUFFER_SIZE];
     uint8_t volatile sendBfStart, sendBfEnd;
     uint32_t sendBfLastMs;
-    bool zcOutput;
     uint8_t zeroCount, sentCount, sendOffset;
     // Receive fields
-    bool zcInput, receivedDataBit;
+    bool receivedDataBit;
     uint8_t receivedCount, receivedBits, receiveBuffer;
     uint8_t rxHouse, rxUnit, rxExtUnit, rxCommand, rxData, rxExtCommand;
     // State stored in byte (8=On/Off, 7=State Known/Unknown, 6-1 data)
-#if not X10_PERSIST_STATE
+#if X10_PERSIST_STATE >= 2
     uint8_t moduleState[256];
 #endif
     // Private methods
@@ -138,9 +147,12 @@ class X10ex
     void receiveMessage();
     void receiveStandardMessage();
     void receiveExtendedMessage();
+#if X10_PERSIST_STATE
     void updateModuleState(uint8_t index);
+#endif
     void clearReceiveBuffer();
     int8_t findCodeIndex(const uint8_t codeList[16], uint8_t code);
+    void fastDigitalWrite(uint8_t port, uint8_t bitMask, uint8_t value);
 };
 
 #endif
