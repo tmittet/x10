@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 IR receiver library, v1.0.                                       */
+/* X10 IR receiver library, v1.1.                                       */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -76,42 +76,79 @@ void X10ir::receive()
     if(lowUs)
     {
       lowUs = micros() - lowUs;
-      if(lowUs > X10_IR_SB_MIN && lowUs < X10_IR_SB_MAX)
+      if(lowUs >= X10_IR_SB_MIN && lowUs <= X10_IR_SB_MAX)
       {
         // Since receiving every command repeat will waste CPU cycles, let's assume that a
         // consecutive command received within a certain threshold is the same as the last one
-        if(millis() > receiveStarted && millis() - receiveStarted < X10_IR_REPEAT_THRESHOLD)
+        if(receiveEnded && millis() > receiveEnded && millis() - receiveEnded < X10_IR_REPEAT_THRESHOLD)
         {
-          receiveStarted = millis();
+          receiveEnded = millis();
           triggerCallback(1);
         }
         else
         {
-          receiveStarted = millis();
-          uint8_t data = getNibble();
-          switch(data & B1111)
-          {
-            case X10_IR_NIB_HOUSE:
-              house = findCodeIndex(HOUSE_CODE, data >> 4) + 65;
-              unit = 0;
-              command = DATA_UNKNOWN;
-              break;
-            case X10_IR_NIB_UNIT:
-              unit = findCodeIndex(UNIT_CODE, data >> 4) + 1;
-              command = CMD_ADDRESS;
-              triggerCallback(0);
-              break;
-            case X10_IR_NIB_COMMAND:
-              command = data >> 4;
-              triggerCallback(0);
-              break;
-            default:
-              receiveStarted = 0;
-          }
+          receiveEnded = 0;
+          receiveBuffer = 0;
+          receivedCount = 1;
         }
       }
-      lowUs = 0;
+      else if(receivedCount)
+      {
+        // Message to long: stop receiving
+        if(receivedCount > 11)
+        {
+          receivedCount = -1;
+        }
+        // Binary one received: add to buffer
+        else if(lowUs >= X10_IR_BIT1_MIN && lowUs <= X10_IR_BIT1_MAX)
+        {
+          receiveBuffer += B1 << (16 - receivedCount);
+        }
+        // Invalid pulse length or end pulse: stop receiving
+        else if(lowUs < X10_IR_BIT0_MIN || lowUs > X10_IR_BIT0_MAX)
+        {
+          // If end pulse was detected: validate and parse
+          if(lowUs > X10_IR_EB_MIN)
+          {
+            // Unit and Command (5 bits + 5 complementary bits)
+            if(receivedCount == 11 && validateData(receiveBuffer, 5))
+            {
+              handleCommand(receiveBuffer >> 8 & B11111000);
+            }
+            // House (4 bits + 4 complementary bits)
+            else if(receivedCount == 9 && validateData(receiveBuffer, 4))
+            {
+              // Mark byte as house code by setting last bit
+              handleCommand(receiveBuffer >> 8 & B11110000 | B1);
+            }
+          }
+          receivedCount = -1;
+        }
+        receivedCount++;
+      }
     }
+  }
+}
+
+void X10ir::handleCommand(uint8_t data)
+{
+  receiveEnded = millis();
+  switch(data & B1111)
+  {
+    case X10_IR_TYPE_HOUSE:
+      house = findCodeIndex(HOUSE_CODE, data >> 4) + 65;
+      unit = 0;
+      command = DATA_UNKNOWN;
+      break;
+    case X10_IR_TYPE_UNIT:
+      unit = findCodeIndex(UNIT_CODE, data >> 4) + 1;
+      command = CMD_ADDRESS;
+      triggerCallback(0);
+      break;
+    case X10_IR_TYPE_COMMAND:
+      command = data >> 4;
+      triggerCallback(0);
+      break;
   }
 }
 
@@ -131,39 +168,7 @@ void X10ir::triggerCallback(bool isRepeat)
   }
 }
 
-uint8_t X10ir::getNibble()
-{
-  uint8_t pos = 0;
-  uint16_t pulse = 0;
-  uint16_t data = 0;
-  while(pulse < X10_IR_EB_MIN && pos < 11)
-  {
-    pulse = pulseIn(receivePin, LOW, X10_IR_EB_MAX);
-    if(pulse >= X10_IR_BIT1_MIN && pulse <= X10_IR_BIT1_MAX)
-    {
-      data += B1 << (15 - pos);
-    }
-    else if(
-      (pulse < X10_IR_BIT0_MIN || pulse > X10_IR_BIT0_MAX) &&
-      (pulse < X10_IR_EB_MIN || pulse > X10_IR_EB_MAX))
-    {
-      return X10_IR_NIB_ERROR;
-    }
-    pos++;
-  }
-  // Unit, Command or House
-  if(pos == 11 && validateNibble(data, 5))
-  {
-    return data >> 8 & B11111000;
-  }
-  else if(pos == 9 && validateNibble(data, 4))
-  {
-    return data >> 8 & B11110000 + 1;
-  }
-  return X10_IR_NIB_ERROR;
-}
-
-bool X10ir::validateNibble(uint16_t data, uint8_t bits)
+bool X10ir::validateData(uint16_t data, uint8_t bits)
 {
   for(uint8_t i = 0; i < bits; i++)
   {
