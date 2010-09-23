@@ -243,14 +243,6 @@ bool X10ex::sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, 
     if(sendBf[sendBfEnd].message != message || millis() > sendBfLastMs + X10_REBUFFER_DELAY || sendBfLastMs - 1 > millis())
     {
       sendBfEnd = (sendBfEnd + 1) % X10_BUFFER_SIZE;
-      // When nothing is currently buffered
-      if(sendBfStart == sendBfEnd)
-      {
-        // Give controller some extra PL cycles before message is sent
-        // This is necessary when command is buffered from an interrupt
-        // to let the controller catch it's breath :)
-        zeroCount = 0;
-      }
       // Buffer message and repetitions
       sendBf[sendBfEnd].message = message;
       sendBf[sendBfEnd].repetitions = repetitions;
