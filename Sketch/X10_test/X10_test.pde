@@ -22,6 +22,7 @@
 #include <X10ir.h>
 
 #define SERIAL_DATA_MSG "SD_"
+#define SERIAL_DATA_THRESHOLD 1000
 #define SERIAL_DATA_TIMEOUT "SD_X_TIMEOUT"
 #define SERIAL_DATA_ERROR "SD_X_ERROR"
 #define MODULE_STATE_MSG "MS_"
@@ -57,20 +58,20 @@ void loop()
 }
 
 // Process serial data messages received from computer over USB, Bluetooth, e.g.
+// Serial messages must be 3 or 6 bytes long
+// Bytes must be sent within one second (defined threshold) from the first to the last
+// To understand the format: looking up an ASCII table is a good start
+// Below are some examples:
+// Standard message: A12 (House=A, Unit=1, Command=On)
+// Standard message: AB3 (House=A, Unit=11, Command=Off)
+// Standard message: A05 (House=A, Unit=0, Command=Bright)
+// Extended message: A47X!1 (House=A, Unit=4, Command=Extended Code, Extended Seperator=X, Extended Data=33, Extended Code=Pre Set Dim)
+// Scenario execute: S03 (Execute scenario 3)
+// Scenario execute: S14 (Execute scenario 14)
+// Request modstate: RA2 (Request buffered state of module A2)
+// Wipe modulestate: RWX (Wipe state data for all modules)
 void processSdMessage()
 {
-  // Serial messages must be 3 or 6 bytes long
-  // Bytes must be sent within one second from the first to the last
-  // To understand the format, looking up an ASCII table is a good start
-  // Below are some examples:
-  // Standard message: A12 (House=A, Unit=1, Command=On)
-  // Standard message: AB3 (House=A, Unit=11, Command=Off)
-  // Standard message: A05 (House=A, Unit=0, Command=Bright)
-  // Extended message: A47X!1 (House=A, Unit=4, Command=Extended Code, Extended Seperator=X, Extended Data=33, Extended Code=Pre Set Dim)
-  // Scenario execute: S03 (Execute scenario 3)
-  // Scenario execute: S14 (Execute scenario 14)
-  // Request modstate: RA2 (Request buffered state of module A2)
-  // Wipe modulestate: RWX (Wipe state data for all modules)
   if(Serial.available() >= 3)
   {
     byte byte1 = Serial.read();
@@ -80,7 +81,7 @@ void processSdMessage()
     byte extCommand;
     // Convert lower case letters to upper case
     byte1 = charToUpper(byte1);
-    // If not extended message convert byte 2 and 3 ASCII 0-9 and A-F to decimal 0-15
+    // If not extended message: convert byte 2 and 3, ASCII 0-9 and A-F, to decimal 0-15
     if(byte1 != 'X')
     {
       // No byte 2 hex to decimal conversion for status requests, since byte 2 is used as house code
@@ -98,7 +99,7 @@ void processSdMessage()
       if(scCommand != CMD_EXTENDED_CODE && scCommand != CMD_EXTENDED_DATA)
       {
         printX10Message(SERIAL_DATA_MSG, scHouse, scUnit, scCommand, 0, 0, 8 * Serial.available());
-        // Check if command is handled by scenario, if not continue
+        // Check if command is handled by scenario; if not continue
         if(!handleUnitScenario(scHouse, scUnit, scCommand, 0))
         {
           x10ex.sendCmd(scHouse, scUnit, scCommand, 2);
@@ -156,8 +157,8 @@ void processSdMessage()
     {
       scReceived = millis();
     }
-    // Clear message if all bytes were not received within one second
-    else if(scReceived > millis() || millis() - scReceived > 1000)
+    // Clear message if all bytes were not received within threshold
+    else if(scReceived > millis() || millis() - scReceived > SERIAL_DATA_THRESHOLD)
     {
       scHouse = 0;
       scReceived = 0;
@@ -180,13 +181,20 @@ void processRfCommand(char house, byte unit, byte command, bool isRepeat)
   {
     printX10Message(RADIO_FREQ_MSG, house, unit, command, 0, 0, 0);
   }
-  // Check if command is handled by scenario, if not continue
+  // Check if command is handled by scenario; if not continue
   if(!handleUnitScenario(house, unit, command, isRepeat))
   {
-    // Other commands map directly, just forward to PL interface
-    // Make sure that two repetitions or more are used for bright and dim,
-    // to avoid that commands are beeing sent seperately when repeated
-    x10ex.sendCmd(house, unit, command, 2);
+    // Make sure that two or more repetitions are used for bright and dim,
+    // to avoid that commands are beeing buffered seperately when repeated
+    if(command == CMD_BRIGHT || command == CMD_DIM)
+    {
+      x10ex.sendCmd(house, unit, command, 2);
+    }
+    // Other commands map directly: just forward to PL interface
+    else if(!isRepeat)
+    {
+      x10ex.sendCmd(house, unit, command, 1);
+    }
   }
 }
 
@@ -197,20 +205,28 @@ void processIrCommand(char house, byte unit, byte command, bool isRepeat)
   {
     printX10Message(INFRARED_MSG, house, unit, command, 0, 0, 0);
   }
-  // Check if command is handled by scenario, if not continue
+  // Check if command is handled by scenario; if not continue
   if(!handleUnitScenario(house, unit, command, isRepeat))
   {
-    // Handle Address Command (House + Unit)
-    if(command == CMD_ADDRESS)
+    // Make sure that two or more repetitions are used for bright and dim,
+    // to avoid that commands are beeing buffered seperately when repeated
+    if(command == CMD_BRIGHT || command == CMD_DIM)
     {
-      x10ex.sendAddress(house, unit, 1);
-    }
-    // Other commands map directly, just forward to PL interface
-    else
-    {
-      // Make sure that two repetitions or more are used for bright and dim,
-      // to avoid that commands are beeing sent seperately when repeated
       x10ex.sendCmd(house, unit, command, 2);
+    }
+    // Only repeat bright and dim commands
+    else if(!isRepeat)
+    {
+      // Handle Address Command (House + Unit)
+      if(command == CMD_ADDRESS)
+      {
+        x10ex.sendAddress(house, unit, 1);
+      }
+      // Other commands map directly: just forward to PL interface
+      else
+      {
+        x10ex.sendCmd(house, unit, command, 1);
+      }
     }
   }
 }
@@ -256,6 +272,8 @@ void printX10Message(const char type[], char house, byte unit, byte command, byt
     case CMD_HAIL_ACKNOWLEDGE:
       Serial.println("_HAC");
       break;
+    // Enable X10_USE_PRE_SET_DIM in X10ex header file
+    // to use X10 standard message PRE_SET_DIM commands
     case CMD_PRE_SET_DIM_0:
     case CMD_PRE_SET_DIM_1:
       printX10Brightness("_PSD", extData);
@@ -373,7 +391,7 @@ bool handleUnitScenario(char house, byte unit, byte command, bool isRepeat)
     return 0;
   }
   
-  // Unit 4 is an old X10 lamp module that doesn't remember state on its own, use the
+  // Unit 4 is an old X10 lamp module that doesn't remember state on its own. Use the
   // following method to revert to buffered state when these modules are turned on
   if(unit == 4)
   {
@@ -465,9 +483,9 @@ bool handleUnitScenario(char house, byte unit, byte command, bool isRepeat)
 // Handles old X10 lamp modules that don't remember state on their own
 void handleOldLampModuleState(char house, byte unit, byte command, bool isRepeat)
 {
-  if(command == CMD_ON && !isRepeat)
+  if(!isRepeat && command == CMD_ON)
   {
-    // Get state from buffer and set it to last brightness when turning on
+    // Get state from buffer, and set to last brightness when turning on
     X10state state = x10ex.getModuleState(house, unit);
     if(state.isKnown && !state.isOn && state.data > 0)
     {
