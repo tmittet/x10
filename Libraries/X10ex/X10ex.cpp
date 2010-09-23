@@ -623,18 +623,15 @@ void X10ex::fastDigitalWrite(uint8_t port, uint8_t bitMask, uint8_t value)
 {
   if(port == NOT_A_PIN) return;
   volatile uint8_t *out = portOutputRegister(port);
+  uint8_t sreg = SREG;
+  cli();
   if(value == LOW)
   {
-    uint8_t sreg = SREG;
-    cli();
     *out &= ~bitMask;
-    SREG = sreg;
   }
   else
   {
-    uint8_t sreg = SREG;
-    cli();
     *out |= bitMask;
-    SREG = sreg;
   }
+  SREG = sreg;
 }
