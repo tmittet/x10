@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 RF receiver library, v1.0.                                       */
+/* X10 RF receiver library, v1.1.                                       */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -69,87 +69,81 @@ void X10rf::receive()
     if(lowUs)
     {
       lowUs = micros() - lowUs;
-      if(lowUs > X10_RF_SB_MIN && lowUs < X10_RF_SB_MAX)
+      if(lowUs >= X10_RF_SB_MIN && lowUs <= X10_RF_SB_MAX)
       {
         // Since receiving every command repeat will waste CPU cycles, let's assume that a
         // consecutive command received within a certain threshold is the same as the last one
-        if(millis() > receiveStarted && millis() - receiveStarted < X10_RF_REPEAT_THRESHOLD)
+        if(receiveEnded && millis() > receiveEnded && millis() - receiveEnded < X10_RF_REPEAT_THRESHOLD)
         {
-          receiveStarted = millis();
+          receiveEnded = millis();
           rfReceiveCallback(house, unit, command, 1);
         }
         else
         {
-          receiveStarted = millis();
-          uint8_t byte1 = getByte();
-          // Check that unused bits are not set and verify bitwize complement
-          if(receiveStarted && (byte1 & B11010000) == 0 && verifyByte(byte1))
-          {
-            uint8_t byte2 = getByte();
-            // Check that unused bits are not set and verify bitwize complement
-            if(receiveStarted && (byte2 & B11100000) == 0 && verifyByte(byte2))
-            {
-              house = parseHouseCode(byte1 & B1111);
-              // Bright or Dim
-              if(byte2 & B1)
-              {
-                unit = 0;
-                // Bit magic to create X10 CMD_DIM (B0100) or CMD_BRIGHT (B0101) nibble
-                command = byte2 >> 3 & B1 ^ B101;
-              }
-              // On or Off
-              else
-              {
-                // Swap some bits to create unit integer from binary data
-                unit = (byte2 >> 3 | byte2 << 1 & B100 | byte1 >> 2 & B1000) + 1;
-                // Bit magic to create X10 CMD_ON (B0010) or CMD_OFF (B0011) nibble
-                command = byte2 >> 2 & B1 | B10;
-              }
-              rfReceiveCallback(house, unit, command, 0);
-            }
-          }
+          receiveEnded = 0;
+          receiveBuffer = 0;
+          receivedCount = 1;
         }
       }
-      lowUs = 0;
+      else if(receivedCount)
+      {
+        // Binary one received: add to buffer
+        if(lowUs >= X10_RF_BIT1_MIN && lowUs <= X10_RF_BIT1_MAX)
+        {
+          receiveBuffer += 1LU << receivedCount - 1;
+        }
+        // Invalid pulse length: stop receiving
+        else if(lowUs < X10_RF_BIT0_MIN || lowUs > X10_RF_BIT0_MAX)
+        {
+          receivedCount = -1;
+        }
+        // Check that unused bits are not set
+        if(
+          (receivedCount == 8 && (receiveBuffer & B11010000) != 0) ||
+          (receivedCount == 24 && ((receiveBuffer >> 16) & B11100000) != 0))
+        {
+          receivedCount = -1;
+        }
+        // Receiving bitwize complement bits (9-16 and 25-32): verify and stop if invalid
+        else if(
+          ((receivedCount > 8 && receivedCount <= 16) || (receivedCount > 24 && receivedCount <= 32)) &&
+          (receiveBuffer >> receivedCount - 9) & B1 == (receiveBuffer >> receivedCount - 1) & B1)
+        {
+          receivedCount = -1;
+        }
+        // Receive complete: parse message
+        if(receivedCount == 32)
+        {
+          receivedCount = -1;
+          handleCommand(receiveBuffer & 0xFF, (receiveBuffer >> 16) & 0xFF);
+        }
+        receivedCount++;
+      }
     }
   }
 }
 
-bool X10rf::getBit()
+void X10rf::handleCommand(uint8_t byte1, uint8_t byte2)
 {
-  uint16_t pulse = pulseIn(receivePin, LOW, X10_RF_BIT1_MAX);
-  if(pulse > X10_RF_BIT1_MIN && pulse < X10_RF_BIT1_MAX)
+  receiveEnded = millis();
+  // Get house code
+  house = parseHouseCode(byte1 & B1111);
+  // Bright or Dim
+  if(byte2 & B1)
   {
-    return 1;
+    unit = 0;
+    // Bit magic to create X10 CMD_DIM (B0100) or CMD_BRIGHT (B0101) nibble
+    command = byte2 >> 3 & B1 ^ B101;
   }
-  else if(pulse < X10_RF_BIT0_MIN || pulse > X10_RF_BIT0_MAX)
+  // On or Off
+  else
   {
-    receiveStarted = 0;
+    // Swap some bits to create unit integer from binary data
+    unit = (byte2 >> 3 | byte2 << 1 & B100 | byte1 >> 2 & B1000) + 1;
+    // Bit magic to create X10 CMD_ON (B0010) or CMD_OFF (B0011) nibble
+    command = byte2 >> 2 & B1 | B10;
   }
-  return 0;
-}
-
-uint8_t X10rf::getByte()
-{
-  uint8_t data = 0;
-  for(uint8_t i = 0; i < 8 && receiveStarted; i++)
-  {
-    bool bit = getBit();
-    data += bit << i;
-  }
-  return data;
-}
-
-bool X10rf::verifyByte(uint8_t data)
-{
-  for(uint8_t i = 0; i < 8 && receiveStarted; i++)
-  {
-    if(data >> i & B1 == getBit())
-    {
-      return 0;
-    }
-  }
-  return 1 && receiveStarted;
+  rfReceiveCallback(house, unit, command, 0);
 }
 
 char X10rf::parseHouseCode(uint8_t data)

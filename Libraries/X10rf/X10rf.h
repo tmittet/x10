@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 RF receiver library, v1.0.                                       */
+/* X10 RF receiver library, v1.1.                                       */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -51,13 +51,13 @@ private:
   uint8_t receiveInt, receivePin, receivePort, receiveBitMask;
   rfReceiveCallback_t rfReceiveCallback;
   // Used by interrupt triggered methods
-  uint32_t lowUs, receiveStarted;
+  uint32_t lowUs, receiveEnded;
   char house;
   uint8_t unit, command;
+  int8_t receivedCount;
+  uint32_t receiveBuffer;
   // Private methods
-  bool getBit();
-  uint8_t getByte();
-  bool verifyByte(uint8_t data);
+  void handleCommand(uint8_t byte1, uint8_t byte2);
   char parseHouseCode(uint8_t data);
 };
 
