@@ -21,21 +21,23 @@
 #include <X10rf.h>
 #include <X10ir.h>
 
-#define SERIAL_DATA_MSG "SD_"
+#define DEBUG 0
+
+#define SERIAL_DATA_MSG "SD:"
 #define SERIAL_DATA_THRESHOLD 1000
-#define SERIAL_DATA_TIMEOUT "SD_X_TIMEOUT"
-#define SERIAL_DATA_ERROR "SD_X_ERROR"
-#define MODULE_STATE_MSG "MS_"
-#define POWER_LINE_MSG "PL_"
-#define POWER_LINE_ERROR_BITS "_ERROR_UNEXPECTEDBITS_"
-#define RADIO_FREQ_MSG "RF_"
-#define INFRARED_MSG "IR_"
+#define SERIAL_DATA_TIMEOUT "SD:_ExTimOut"
+#define SERIAL_DATA_ERROR "SD:_ExSyntax"
+#define MODULE_STATE_MSG "MS:"
+#define POWER_LINE_MSG "PL:"
+#define RADIO_FREQ_MSG "RF:"
+#define INFRARED_MSG "IR:"
 
 // Fields used for serial message reception
-unsigned long scReceived;
-char scHouse;
-byte scUnit;
-byte scCommand;
+unsigned long sdReceived;
+char sdHouse;
+byte sdUnit;
+byte sdCommand;
+byte sdExtCommand;
 
 // zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true, phases = 1, sineWaveHz = 50
 X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage, 1, 50);
@@ -50,6 +52,7 @@ void setup()
   x10ex.begin();
   x10rf.begin();
   x10ir.begin();
+  Serial.println("X10");
 }
 
 void loop()
@@ -58,17 +61,16 @@ void loop()
 }
 
 // Process serial data messages received from computer over USB, Bluetooth, e.g.
-// Serial messages must be 3 or 6 bytes long
+// Serial messages are 3 or 9 bytes long. Address units using hex 0-F, 4=Unit 5.
 // Bytes must be sent within one second (defined threshold) from the first to the last
-// To understand the format: looking up an ASCII table is a good start
 // Below are some examples:
-// Standard message: A12 (House=A, Unit=1, Command=On)
-// Standard message: AB3 (House=A, Unit=11, Command=Off)
-// Standard message: A05 (House=A, Unit=0, Command=Bright)
-// Extended message: A47X!1 (House=A, Unit=4, Command=Extended Code, Extended Seperator=X, Extended Data=33, Extended Code=Pre Set Dim)
+// Standard message: A12 (House=A, Unit=2, Command=On)
+// Standard message: AB3 (House=A, Unit=12, Command=Off)
+// Standard message: A_5 (House=A, Unit=0, Command=Bright)
+// Extended message: A37x31x21 (House=A, Unit=4, Command=Extended Code, Hex Extended Command=PRE_SET_DIM, Hex Extended Data=33)
 // Scenario execute: S03 (Execute scenario 3)
-// Scenario execute: S14 (Execute scenario 14)
-// Request modstate: RA2 (Request buffered state of module A2)
+// Scenario execute: S14 (Execute scenario 20)
+// Request modstate: RA2 (Request buffered state of module A3)
 // Wipe modulestate: RWX (Wipe state data for all modules)
 void processSdMessage()
 {
@@ -81,87 +83,97 @@ void processSdMessage()
     byte extCommand;
     // Convert lower case letters to upper case
     byte1 = charToUpper(byte1);
-    // If not extended message: convert byte 2 and 3, ASCII 0-9 and A-F, to decimal 0-15
-    if(byte1 != 'X')
-    {
-      // No byte 2 hex to decimal conversion for status requests, since byte 2 is used as house code
-      byte2 = byte1 == 'R' ? charToUpper(byte2) : charHexToDecimal(byte2);
-      byte3 = charHexToDecimal(byte3);
-    }
+    // Convert byte 2 and 3, ASCII 0-9 and A-F, to decimal 0-15
+    // Note: no byte 2 hex to decimal conversion for status requests, since byte 2 is used as house code
+    byte2 = byte1 == 'R' ? charToUpper(byte2) : charHexToDecimal(byte2);
+    byte3 = charHexToDecimal(byte3);
     // Check if standard message was received (byte1 = House, byte2 = Unit, byte3 = Command)
-    if(byte1 >= 'A' && byte1 <= 'P' && byte2 <= 16 && byte3 <= 0xF)
+    if(byte1 >= 'A' && byte1 <= 'P' && (byte2 <= 0xF || byte2 == '_') && byte3 <= 0xF)
     {
-      // Store first 3 bytes of message to make it possible to process 6 byte serial messages
-      scHouse = byte1;
-      scUnit = byte2;
-      scCommand = byte3;
+      // Store first 3 bytes of message to make it possible to process 9 byte serial messages
+      sdHouse = byte1;
+      sdUnit = byte2 == '_' ? 0 : byte2 + 1;
+      sdCommand = byte3;
       // Send standard message if command type is not extended
-      if(scCommand != CMD_EXTENDED_CODE && scCommand != CMD_EXTENDED_DATA)
+      if(sdCommand != CMD_EXTENDED_CODE && sdCommand != CMD_EXTENDED_DATA)
       {
-        printX10Message(SERIAL_DATA_MSG, scHouse, scUnit, scCommand, 0, 0, 8 * Serial.available());
+        printX10Message(SERIAL_DATA_MSG, sdHouse, sdUnit, sdCommand, 0, 0, 8 * Serial.available());
         // Check if command is handled by scenario; if not continue
-        if(!handleUnitScenario(scHouse, scUnit, scCommand, 0))
+        if(!handleUnitScenario(sdHouse, sdUnit, sdCommand, 0))
         {
-          x10ex.sendCmd(scHouse, scUnit, scCommand, 2);
+          x10ex.sendCmd(sdHouse, sdUnit, sdCommand, sdCommand == CMD_BRIGHT || sdCommand == CMD_DIM ? 2 : 1);
         }        
-        scHouse = 0;
-        Serial.flush();
+        sdHouse = 0;
       }
     }
-    // Check if extended message was received (byte1 = Extended Seperator, byte2 = Extended Data, byte3 = Extended Command)
-    else if(byte1 == 'X' && byte3 && scHouse && (scCommand == CMD_EXTENDED_CODE || scCommand == CMD_EXTENDED_DATA))
+    // Check if extended message was received (byte1 = Hex Seperator, byte2 = Hex 1, byte3 = Hex 2)
+    else if(byte1 == 'X' && sdHouse)
     {
-      printX10Message(SERIAL_DATA_MSG, scHouse, scUnit, scCommand, byte2, byte3, 8 * Serial.available());
-      x10ex.sendExt(scHouse, scUnit, scCommand, byte2, byte3, 2);
-      scHouse = 0;
-      Serial.flush();
+      byte data = byte2 * 16 + byte3;
+      // No extended command set, assume that we are receiving command
+      if(!sdExtCommand)
+      {
+        sdExtCommand = data;
+      }
+      // Extended command set, we must be receiving extended data
+      else
+      {
+        printX10Message(SERIAL_DATA_MSG, sdHouse, sdUnit, sdCommand, data, sdExtCommand, 8 * Serial.available());
+        x10ex.sendExt(sdHouse, sdUnit, sdCommand, data, sdExtCommand, 1);
+        sdHouse = 0;
+        sdExtCommand = 0;
+      }
     }
-    // Check if scenario execute was received (byte1 = Scenario Seperator, byte2 = Decimal * 10, byte3 = Decimal)
-    else if(byte1 == 'S' && byte2 <= 9 && byte3 <= 9)
+    // Check if scenario execute was received (byte1 = Scenario Seperator, byte2 = Hex 1, byte3 = Hex 2)
+    else if(byte1 == 'S')
     {
-      byte scenario = byte2 * 10 + byte3;
+      byte scenario = byte2 * 16 + byte3;
       Serial.print(SERIAL_DATA_MSG);
-      Serial.print("X_SCENARIO_EXEC_");
-      Serial.println(scenario, DEC);
+      Serial.print("S");
+      if(scenario <= 0xF) { Serial.print("0"); }
+      Serial.println(scenario, HEX);
       handleSdScenario(scenario);
-      Serial.flush();
     }
     // Check if module status request was received (byte1 = Status Request Seperator, byte2 = House, byte3 = Unit)
-    else if(byte1 == 'R' && byte2 >= 'A' && byte2 <= 'P' && byte3 > 0 && byte3 <= 16)
+    else if(byte1 == 'R' && byte2 >= 'A' && byte2 <= 'P')
     {
-      printX10TypeHouseUnit(SERIAL_DATA_MSG, byte2, byte3, DATA_UNKNOWN);
-      Serial.println("_RSTATE");
+      Serial.print(SERIAL_DATA_MSG);
+      Serial.print("R");
+      Serial.print(byte2);
+      Serial.println(byte3, HEX);
+      byte3++;
       X10state state = x10ex.getModuleState(byte2, byte3);
-      byte command = state.isKnown ? state.isOn ? CMD_ON : CMD_OFF : DATA_UNKNOWN;
+      byte command = state.isKnown ? state.isOn ? CMD_STATUS_ON : CMD_STATUS_OFF : DATA_UNKNOWN;
       printX10Message(MODULE_STATE_MSG, byte2, byte3, command, state.data, 0, 0);
-      Serial.flush();
     }
     else if(byte1 == 'R' && byte2 == 'W' && byte3 == 'X')
     {
       Serial.print(SERIAL_DATA_MSG);
-      Serial.println("X_WIPESTATE");
+      Serial.println("RWX");
       x10ex.wipeModuleState();
+      Serial.print(MODULE_STATE_MSG);
+      Serial.println("___");
     }
     // Unknown data
     else
     {
       Serial.println(SERIAL_DATA_ERROR);
     }
-    scReceived = 0;
+    sdReceived = 0;
   }
   // If partial message was received
   if(Serial.available() && Serial.available() < 3)
   {
     // Store received time
-    if(!scReceived)
+    if(!sdReceived)
     {
-      scReceived = millis();
+      sdReceived = millis();
     }
     // Clear message if all bytes were not received within threshold
-    else if(scReceived > millis() || millis() - scReceived > SERIAL_DATA_THRESHOLD)
+    else if(sdReceived > millis() || millis() - sdReceived > SERIAL_DATA_THRESHOLD)
     {
-      scHouse = 0;
-      scReceived = 0;
+      sdHouse = 0;
+      sdReceived = 0;
       Serial.println(SERIAL_DATA_TIMEOUT);
       Serial.flush();
     }
@@ -234,86 +246,24 @@ void processIrCommand(char house, byte unit, byte command, bool isRepeat)
 void printX10Message(const char type[], char house, byte unit, byte command, byte extData, byte extCommand, int remainingBits)
 {
   printX10TypeHouseUnit(type, house, unit, command);
-  switch(command)
+  // Ignore non X10 commands like the CMD_ADDRESS command used by the IR library
+  if(command <= 0xF)
   {
-    // This is not a real X10 command, it's a special command used by the IR
-    // library to signal that an address and a house code has been received
-    case CMD_ADDRESS:
-      Serial.println();
-      break;
-    case CMD_ALL_UNITS_OFF:
-      Serial.println("_UOFF");
-      break;
-    case CMD_ALL_LIGHTS_ON:
-      Serial.println("_LON");
-      break;
-    case CMD_ON:
-      Serial.print("_ON");
-      printX10Brightness("_BRI", extData);
-      break;
-    case CMD_OFF:
-      Serial.println("_OFF");
-      break;
-    case CMD_DIM:
-      Serial.println("_DIM");
-      break;
-    case CMD_BRIGHT:
-      Serial.println("_BRI");
-      break;
-    case CMD_ALL_LIGHTS_OFF:
-      Serial.println("_LOFF");
-      break;
-    case CMD_EXTENDED_CODE:
-      Serial.print("_EXC");
-      break;
-    case CMD_HAIL_REQUEST:
-      Serial.println("_HRQ");
-      break;
-    case CMD_HAIL_ACKNOWLEDGE:
-      Serial.println("_HAC");
-      break;
-    // Enable X10_USE_PRE_SET_DIM in X10ex header file
-    // to use X10 standard message PRE_SET_DIM commands
-    case CMD_PRE_SET_DIM_0:
-    case CMD_PRE_SET_DIM_1:
-      printX10Brightness("_PSD", extData);
-      break;
-    case CMD_EXTENDED_DATA:
-      Serial.print("_EXD");
-      break;
-    case CMD_STATUS_ON:
-      Serial.println("_SON");
-      break;
-    case CMD_STATUS_OFF:
-      Serial.println("_SOFF");
-      break;
-    case CMD_STATUS_REQUEST:
-      Serial.println("_SRQ");
-      break;
-    case DATA_UNKNOWN:
-      Serial.println("_UNKNOWN");
-      break;
-  }
-  if(extCommand)
-  {
-    switch(extCommand)
+    Serial.print(command, HEX);
+    if(extCommand || (extData && (command == CMD_STATUS_ON || command == CMD_STATUS_OFF)))
     {
-      case EXC_PRE_SET_DIM:
-        printX10Brightness("_PSD", extData);
-        break;
-      default:
-        Serial.print("_");
-        Serial.print(extCommand, HEX);
-        Serial.print("_");
-        Serial.println(extData, HEX);
+      printX10ByteAsHex(extCommand);
+      printX10ByteAsHex(extCommand == EXC_PRE_SET_DIM ? extData & B111111 : extData);
     }
   }
-  if(remainingBits)
+  else
   {
-    printX10TypeHouseUnit(type, house, unit, command);
-    Serial.println(POWER_LINE_ERROR_BITS);
-    Serial.println(remainingBits, DEC);
+    Serial.print("_");
   }
+  Serial.println();
+#if DEBUG
+  printDebugX10Message(type, house, unit, command, extData, extCommand, remainingBits);
+#endif
 }
 
 void printX10TypeHouseUnit(const char type[], char house, byte unit, byte command)
@@ -328,29 +278,24 @@ void printX10TypeHouseUnit(const char type[], char house, byte unit, byte comman
     command != CMD_ALL_LIGHTS_OFF &&
     command != CMD_HAIL_REQUEST)
   {
-    Serial.print(unit, DEC);
-  }
-}
-
-void printX10Brightness(const char source[], byte extData)
-{
-  if(extData > 0)
-  {
-    Serial.print(source);
-    Serial.print("_");
-    Serial.println(round((extData & B111111) * 100 / 62.0), DEC);
+    Serial.print(unit - 1, HEX);
   }
   else
   {
-    Serial.println("");
+    Serial.print("_");
   }
+}
+
+void printX10ByteAsHex(byte data)
+{
+  Serial.print("x");
+  if(data <= 0xF) { Serial.print("0"); }
+  Serial.print(data, HEX);
 }
 
 byte charToUpper(byte input)
 {
-  if(input >= 0x61) input -= 0x20;
-  // Return converted byte
-  return input;  
+  return input >= 0x61 ? input - 0x20 : input;
 }
 
 byte charHexToDecimal(byte input)
@@ -370,14 +315,14 @@ void handleSdScenario(byte scenario)
 {
   switch(scenario)
   {
-    case 01: sendAllLightsOn(); break;
-    case 02: sendHallAndKitchenOn(); break;
-    case 03: sendLivingRoomOn(); break;
-    case 04: sendLivingRoomTvScenario(); break;
-    case 05: sendLivingRoomMovieScenario(); break;
-    case 11: sendAllLightsOff(); break;
-    case 12: sendHallAndKitchenOff(); break;
-    case 13: sendLivingRoomOff(); break;
+    case 0x01: sendAllLightsOn(); break;
+    case 0x02: sendHallAndKitchenOn(); break;
+    case 0x03: sendLivingRoomOn(); break;
+    case 0x04: sendLivingRoomTvScenario(); break;
+    case 0x05: sendLivingRoomMovieScenario(); break;
+    case 0x11: sendAllLightsOff(); break;
+    case 0x12: sendHallAndKitchenOff(); break;
+    case 0x13: sendLivingRoomOff(); break;
   }
 }
 
@@ -563,3 +508,108 @@ void sendLivingRoomMovieScenario()
   x10ex.sendCmd('A', 3, CMD_OFF, 1);
   x10ex.sendExtDim('A', 4, 25, EXC_DIM_TIME_4, 1); 
 }
+
+#if DEBUG
+
+void printDebugX10Message(const char type[], char house, byte unit, byte command, byte extData, byte extCommand, int remainingBits)
+{
+  Serial.print("DEBUG=");
+  printX10TypeHouseUnit(type, house, unit, command);
+  switch(command)
+  {
+    // This is not a real X10 command, it's a special command used by the IR
+    // library to signal that an address and a house code has been received
+    case CMD_ADDRESS:
+      Serial.println();
+      break;
+    case CMD_ALL_UNITS_OFF:
+      Serial.println("_AllUnitsOff");
+      break;
+    case CMD_ALL_LIGHTS_ON:
+      Serial.println("_AllLightsOn");
+      break;
+    case CMD_ON:
+      Serial.print("_On");
+      printDebugX10Brightness("_Brightness", extData);
+      break;
+    case CMD_OFF:
+      Serial.print("_Off");
+      printDebugX10Brightness("_Brightness", extData);
+      break;
+    case CMD_DIM:
+      Serial.println("_Dim");
+      break;
+    case CMD_BRIGHT:
+      Serial.println("_Bright");
+      break;
+    case CMD_ALL_LIGHTS_OFF:
+      Serial.println("_AllLightsOff");
+      break;
+    case CMD_EXTENDED_CODE:
+      Serial.print("_ExtendedCode");
+      break;
+    case CMD_HAIL_REQUEST:
+      Serial.println("_HailReq");
+      break;
+    case CMD_HAIL_ACKNOWLEDGE:
+      Serial.println("_HailAck");
+      break;
+    // Enable X10_USE_PRE_SET_DIM in X10ex header file
+    // to use X10 standard message PRE_SET_DIM commands
+    case CMD_PRE_SET_DIM_0:
+    case CMD_PRE_SET_DIM_1:
+      printDebugX10Brightness("_PreSetDim", extData);
+      break;
+    case CMD_EXTENDED_DATA:
+      Serial.print("_ExtendedData");
+      break;
+    case CMD_STATUS_ON:
+      Serial.println("_StatusOn");
+      break;
+    case CMD_STATUS_OFF:
+      Serial.println("_StatusOff");
+      break;
+    case CMD_STATUS_REQUEST:
+      Serial.println("_StatusReq");
+      break;
+    case DATA_UNKNOWN:
+      Serial.println("_Unknown");
+      break;
+  }
+  if(extCommand)
+  {
+    switch(extCommand)
+    {
+      case EXC_PRE_SET_DIM:
+        printDebugX10Brightness("_PreSetDim", extData);
+        break;
+      default:
+        Serial.print("_");
+        Serial.print(extCommand, HEX);
+        Serial.print("_");
+        Serial.println(extData, HEX);
+    }
+  }
+  if(remainingBits)
+  {
+    printX10TypeHouseUnit(type, house, unit, command);
+    Serial.print("_ErrorBitCount=");
+    Serial.println(remainingBits, DEC);
+  }
+}
+
+void printDebugX10Brightness(const char source[], byte extData)
+{
+  if(extData > 0)
+  {
+    Serial.print(source);
+    Serial.print("_");
+    Serial.println(round((extData & B111111) * 100 / 62.0), DEC);
+  }
+  else
+  {
+    Serial.println();
+  }
+}
+
+#endif
