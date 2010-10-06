@@ -547,49 +547,56 @@ void X10ex::updateModuleState(uint8_t index)
   uint8_t state = moduleState[index];
   #endif
   uint8_t stateData = state & B111111;
-  // Dim or bright: update brightness
+  // Dim: estimate brightness
   if(rxCommand == CMD_DIM)
   {
+    // Module is off: set full brightness
     if(state >> 6 == B1)
     {
       stateData = 62;
     }
+    // Module is on: decrease until limit
     else
     {
       stateData = stateData > 9 ? stateData - 9 : 1;
     }
   }
-  if(rxCommand == CMD_BRIGHT)
+  // Bright: estimate brightness
+  else if(rxCommand == CMD_BRIGHT)
   {
+    // Module is off: set low brightness
     if(state >> 6 == B1)
     {
       stateData = 11;
     }
+    // Module is on: increase until limit
     else
     {
       stateData = stateData <= 53 ? stateData + 9 : 62;
     }
   }
-  // Off: update known and on bits
+  // Off: update known and off bits, and get brightness from buffer
   if(rxCommand == CMD_OFF || rxCommand == CMD_STATUS_OFF)
   {
     state |= B1000000;
     state &= B1111111;
+    rxData = stateData;
   }
   // On: update known and on bits, and get brightness from buffer
-  if(rxCommand == CMD_DIM || rxCommand == CMD_BRIGHT || rxCommand == CMD_ON || rxCommand == CMD_STATUS_ON)
+  else if(rxCommand == CMD_DIM || rxCommand == CMD_BRIGHT || rxCommand == CMD_ON || rxCommand == CMD_STATUS_ON)
   {
     state = stateData | B11000000;
     rxData = stateData;
   }
   // X10 standard or extended code message pre set dim commands
-  if((rxCommand & B1110) == CMD_PRE_SET_DIM_0 || (rxCommand == CMD_EXTENDED_CODE && rxExtCommand == EXC_PRE_SET_DIM))
+  else if((rxCommand & B1110) == CMD_PRE_SET_DIM_0 || (rxCommand == CMD_EXTENDED_CODE && rxExtCommand == EXC_PRE_SET_DIM))
   {
+    // Brightness > 0: update known and on bits, and set brightness
     if(rxData > 0)
     {
       state = rxData | B1000000 | ((rxData > 0) << 7);
     }
-    // Dim level 0: set known and off bits only
+    // Brightness 0: set known and off bits only
     else
     {
       state |= B1000000;
