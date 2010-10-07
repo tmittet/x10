@@ -47,6 +47,10 @@ X10rf::X10rf(uint8_t receiveInt, uint8_t receivePin, rfReceiveCallback_t rfRecei
   x10rfInstance = this;
 }
 
+//////////////////////////////
+/// Public
+//////////////////////////////
+
 void X10rf::begin()
 {
   if(rfReceiveCallback)
@@ -55,6 +59,10 @@ void X10rf::begin()
     attachInterrupt(receiveInt, x10rfReceive_wrapper, CHANGE);
   }
 }
+
+//////////////////////////////
+/// Public (Interrupt Methods)
+//////////////////////////////
 
 void X10rf::receive()
 {
@@ -122,6 +130,10 @@ void X10rf::receive()
     }
   }
 }
+
+//////////////////////////////
+/// Private
+//////////////////////////////
 
 void X10rf::handleCommand(uint8_t byte1, uint8_t byte2)
 {
