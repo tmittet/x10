@@ -97,6 +97,10 @@ X10ex::X10ex(
   x10exInstance = this;
 }
 
+//////////////////////////////
+/// Public
+//////////////////////////////
+
 void X10ex::begin()
 {
   // Using arduino digitalWrite here ensures that pins are
@@ -292,6 +296,10 @@ void X10ex::wipeModuleState()
 #endif
 }
 
+//////////////////////////////
+/// Public (Interrupt Methods)
+//////////////////////////////
+
 void X10ex::zeroCross()
 {
   zcOutput = 0;
@@ -369,6 +377,10 @@ void X10ex::ioTimer()
   }
   ioState++;
 }
+
+//////////////////////////////
+/// Private
+//////////////////////////////
 
 bool X10ex::getBitToSend()
 {

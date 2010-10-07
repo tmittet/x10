@@ -116,7 +116,7 @@ class X10ex
     X10state getModuleState(char house, uint8_t unit);
     void wipeModuleState();
     void zeroCross();
-	void ioTimer();
+    void ioTimer();
   
   private:
     static const uint8_t HOUSE_CODE[16];
