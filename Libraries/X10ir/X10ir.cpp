@@ -54,6 +54,10 @@ X10ir::X10ir(uint8_t receiveInt, uint8_t receivePin, char defaultHouse, irReceiv
   x10irInstance = this;
 }
 
+//////////////////////////////
+/// Public
+//////////////////////////////
+
 void X10ir::begin()
 {
   if(irReceiveCallback)
@@ -62,6 +66,10 @@ void X10ir::begin()
     attachInterrupt(receiveInt, x10irReceive_wrapper, CHANGE);
   }
 }
+
+//////////////////////////////
+/// Public (Interrupt Methods)
+//////////////////////////////
 
 void X10ir::receive()
 {
@@ -129,6 +137,10 @@ void X10ir::receive()
     }
   }
 }
+
+//////////////////////////////
+/// Private
+//////////////////////////////
 
 void X10ir::handleCommand(uint8_t data)
 {
