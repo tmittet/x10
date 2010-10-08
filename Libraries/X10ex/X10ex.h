@@ -87,8 +87,9 @@ struct X10msg
 // Used when returning module state
 struct X10state
 {
-  bool isKnown;
-  bool isOn;
+  bool isSeen;  // Is true when message addressed to module has been seen/received on power line
+  bool isKnown; // Is true when module state ON/OFF is known
+  bool isOn;    // Is true when appliance/dimmer module is ON
   uint8_t data;
 };
 
@@ -105,16 +106,16 @@ class X10ex
       uint8_t phases = 1, uint8_t sineWaveHz = 50);
     // Public methods
     void begin();
-    bool sendAddress(char house, uint8_t unit, uint8_t repetitions);
-    bool sendCmd(char house, uint8_t command, uint8_t repetitions);
-    bool sendCmd(char house, uint8_t unit, uint8_t command, uint8_t repetitions);
+    bool sendAddress(uint8_t house, uint8_t unit, uint8_t repetitions);
+    bool sendCmd(uint8_t house, uint8_t command, uint8_t repetitions);
+    bool sendCmd(uint8_t house, uint8_t unit, uint8_t command, uint8_t repetitions);
 #if X10_USE_PRE_SET_DIM
-    bool sendDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitions);
+    bool sendDim(uint8_t house, uint8_t unit, uint8_t percent, uint8_t repetitions);
 #endif
-    bool sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t time, uint8_t repetitions);
-    bool sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, uint8_t extCommand, uint8_t repetitions);
-    X10state getModuleState(char house, uint8_t unit);
-    void wipeModuleState();
+    bool sendExtDim(uint8_t house, uint8_t unit, uint8_t percent, uint8_t time, uint8_t repetitions);
+    bool sendExt(uint8_t house, uint8_t unit, uint8_t command, uint8_t extData, uint8_t extCommand, uint8_t repetitions);
+    X10state getModuleState(uint8_t house, uint8_t unit);
+    void wipeModuleState(uint8_t house = '*');
     void zeroCross();
     void ioTimer();
   
@@ -151,6 +152,7 @@ class X10ex
     void updateModuleState(uint8_t index);
 #endif
     void clearReceiveBuffer();
+    uint8_t parseHouseCode(uint8_t house);
     int8_t findCodeIndex(const uint8_t codeList[16], uint8_t code);
     void fastDigitalWrite(uint8_t port, uint8_t bitMask, uint8_t value);
 };

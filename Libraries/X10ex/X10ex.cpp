@@ -130,7 +130,7 @@ void X10ex::begin()
 #endif
 }
 
-bool X10ex::sendAddress(char house, uint8_t unit, uint8_t repetitions)
+bool X10ex::sendAddress(uint8_t house, uint8_t unit, uint8_t repetitions)
 {
   // Using CMD_STATUS_REQUEST to address modules (prepare for BRIGHT, DIM, etc.).
   // I've not seen any modules that reply to the request, and even if they did
@@ -138,12 +138,12 @@ bool X10ex::sendAddress(char house, uint8_t unit, uint8_t repetitions)
   return sendCmd(house, unit, CMD_STATUS_REQUEST, repetitions);
 }
 
-bool X10ex::sendCmd(char house, uint8_t command, uint8_t repetitions)
+bool X10ex::sendCmd(uint8_t house, uint8_t command, uint8_t repetitions)
 {
   return sendCmd(house, 0, command, repetitions);
 }
 
-bool X10ex::sendCmd(char house, uint8_t unit, uint8_t command, uint8_t repetitions)
+bool X10ex::sendCmd(uint8_t house, uint8_t unit, uint8_t command, uint8_t repetitions)
 {
   return sendExt(house, unit, command, 0, 0, repetitions);
 }
@@ -151,7 +151,7 @@ bool X10ex::sendCmd(char house, uint8_t unit, uint8_t command, uint8_t repetitio
 // You can enable this by changing defined value in header file. If you're using a
 // PLC interface and modules that support extended code, use the "sendExtDim" method.
 #if X10_USE_PRE_SET_DIM
-bool X10ex::sendDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitions)
+bool X10ex::sendDim(uint8_t house, uint8_t unit, uint8_t percent, uint8_t repetitions)
 {
   if(percent == 0)
   {
@@ -172,7 +172,7 @@ bool X10ex::sendDim(char house, uint8_t unit, uint8_t percent, uint8_t repetitio
 // This method works with all X10 modules that support extended code. The only
 // exception is the time attribute, that may result in unexpected behaviour
 // when set to anything but the default value 0, on some X10 modules.
-bool X10ex::sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t time, uint8_t repetitions)
+bool X10ex::sendExtDim(uint8_t house, uint8_t unit, uint8_t percent, uint8_t time, uint8_t repetitions)
 {
   if(percent == 0)
   {
@@ -190,9 +190,9 @@ bool X10ex::sendExtDim(char house, uint8_t unit, uint8_t percent, uint8_t time, 
 }
 
 // Returns true when command was buffered successfully
-bool X10ex::sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, uint8_t extCommand, uint8_t repetitions)
+bool X10ex::sendExt(uint8_t house, uint8_t unit, uint8_t command, uint8_t extData, uint8_t extCommand, uint8_t repetitions)
 {
-  house -= house > 96 ? 97 : 65;
+  house = parseHouseCode(house);
   unit--;
   // Validate input
   if(house > 0xF || (unit > 0xF && unit != 0xFF))
@@ -257,10 +257,11 @@ bool X10ex::sendExt(char house, uint8_t unit, uint8_t command, uint8_t extData, 
   return 0;
 }
 
-X10state X10ex::getModuleState(char house, uint8_t unit)
+X10state X10ex::getModuleState(uint8_t house, uint8_t unit)
 {
-  house -= house > 96 ? 97 : 65;
+  house = parseHouseCode(house);
   unit--;
+  bool isSeen = 0;
   bool isKnown = 0;
   bool isOn = 0;
   uint8_t data;
@@ -272,26 +273,37 @@ X10state X10ex::getModuleState(char house, uint8_t unit)
   #else
   uint8_t state = moduleState[stateIx];
   #endif
-  if(house <= 0xF && unit <= 0xF && state >> 6 & B1)
+  // Bit 1 and 2 in state byte has the state, last 6 bits is brightness
+  // 00 = Not seen, Not known, Not On
+  // 01 = Seen, Not known, Not On
+  // 10 = Seen, Known, Not On
+  // 11 = Seen, Known, On
+  if(house <= 0xF && unit <= 0xF && state & B11000000)
   {
-    isKnown = 1;
-    isOn = state >> 7;
-    data = state & B111111;
+    isSeen = 1;
+    isKnown = state & B10000000;
+    isOn = state >= B11000000;
+    if(isKnown) data = state & B111111;
   }
 #endif
-  return (X10state) { isKnown, isOn, data };
+  return (X10state) { isSeen, isKnown, isOn, data };
 }
 
-void X10ex::wipeModuleState()
+// NOTE: If house is outside range A-P, state of all modules is wiped
+void X10ex::wipeModuleState(uint8_t house)
 {
 #if X10_PERSIST_STATE
-  for(int i = 0; i < 256; i++)
+  house = parseHouseCode(house);
+  uint16_t ix = house <= 0xF ? house << 4 : 0;
+  uint16_t endIx = house <= 0xF ? ix + 16 : 256;
+  while(ix < endIx)
   {
   #if X10_PERSIST_STATE == 1
-    eeprom_write_byte((unsigned char *)i, 255);
+    eeprom_write_byte((unsigned char *)ix, 255);
   #else
-    moduleState[i] = 0;
+    moduleState[ix] = 0;
   #endif
+    ix++;
   }
 #endif
 }
@@ -558,19 +570,26 @@ void X10ex::updateModuleState(uint8_t index)
   #else
   uint8_t state = moduleState[index];
   #endif
-  uint8_t stateData = state & B111111;
+  // Bit 1 and 2 in state byte has the state, last 6 bits is brightness
+  // 00 = Not seen, Not known, Not On
+  // 01 = Seen, Not known, Not On
+  // 10 = Seen, Known, Not On
+  // 11 = Seen, Known, On
+  uint8_t brightness = state & B111111;
+  // If not seen, set seen
+  if(!(state & B11000000)) state |= B1000000;
   // Dim: estimate brightness
   if(rxCommand == CMD_DIM)
   {
     // Module is off: set full brightness
     if(state >> 6 == B1)
     {
-      stateData = 62;
+      brightness = 62;
     }
     // Module is on: decrease until limit
     else
     {
-      stateData = stateData > 9 ? stateData - 9 : 1;
+      brightness = brightness > 9 ? brightness - 9 : 1;
     }
   }
   // Bright: estimate brightness
@@ -579,40 +598,38 @@ void X10ex::updateModuleState(uint8_t index)
     // Module is off: set low brightness
     if(state >> 6 == B1)
     {
-      stateData = 11;
+      brightness = 11;
     }
     // Module is on: increase until limit
     else
     {
-      stateData = stateData <= 53 ? stateData + 9 : 62;
+      brightness = brightness <= 53 ? brightness + 9 : 62;
     }
   }
-  // Off: update known and off bits, and get brightness from buffer
+  // Off: set state and get brightness from buffer
   if(rxCommand == CMD_OFF || rxCommand == CMD_STATUS_OFF)
   {
-    state |= B1000000;
-    state &= B1111111;
-    rxData = stateData;
+    state = brightness | B10000000;
+    rxData = brightness;
   }
-  // On: update known and on bits, and get brightness from buffer
+  // On: set state and get brightness from buffer
   else if(rxCommand == CMD_DIM || rxCommand == CMD_BRIGHT || rxCommand == CMD_ON || rxCommand == CMD_STATUS_ON)
   {
-    state = stateData | B11000000;
-    rxData = stateData;
+    state = brightness | B11000000;
+    rxData = brightness;
   }
   // X10 standard or extended code message pre set dim commands
   else if((rxCommand & B1110) == CMD_PRE_SET_DIM_0 || (rxCommand == CMD_EXTENDED_CODE && rxExtCommand == EXC_PRE_SET_DIM))
   {
-    // Brightness > 0: update known and on bits, and set brightness
+    // Brightness > 0: update state and set brightness
     if(rxData > 0)
     {
-      state = rxData | B1000000 | ((rxData > 0) << 7);
+      state = rxData | B11000000;
     }
-    // Brightness 0: set known and off bits only
+    // Brightness 0: set state off
     else
     {
-      state |= B1000000;
-      state &= B1111111;
+      state = brightness | B10000000;
     }
   }
   #if X10_PERSIST_STATE == 1
@@ -627,6 +644,11 @@ void X10ex::clearReceiveBuffer()
 {
   receivedBits = 0;
   receiveBuffer = 0;
+}
+
+uint8_t X10ex::parseHouseCode(uint8_t house)
+{
+  return house - (house >= 0x61 ? 0x61 : 0x41);
 }
 
 int8_t X10ex::findCodeIndex(const uint8_t codeList[16], uint8_t code)
