@@ -66,27 +66,26 @@ void loop()
 // Below are some examples:
 // Standard message: A12 (House=A, Unit=2, Command=On)
 // Standard message: AB3 (House=A, Unit=12, Command=Off)
-// Standard message: A_5 (House=A, Unit=0, Command=Bright)
+// Standard message: A_5 (House=A, Unit=N/A, Command=Bright)
 // Extended message: A37x31x21 (House=A, Unit=4, Command=Extended Code, Hex Extended Command=PRE_SET_DIM, Hex Extended Data=33)
 // Scenario execute: S03 (Execute scenario 3)
 // Scenario execute: S14 (Execute scenario 20)
+// Request modstate: R** (Request buffered state of all modules)
+// Request modstate: RG* (Request buffered state of modules using house code G)
 // Request modstate: RA2 (Request buffered state of module A3)
-// Wipe modulestate: RWX (Wipe state data for all modules)
+// Wipe modulestate: RW* (Wipe state data for all modules)
+// Wipe modulestate: RWB (Wipe state data for all modules using house code B)
 void processSdMessage()
 {
   if(Serial.available() >= 3)
   {
-    byte byte1 = Serial.read();
-    byte byte2 = Serial.read();
-    byte byte3 = Serial.read();
-    byte extData;
-    byte extCommand;
-    // Convert lower case letters to upper case
-    byte1 = charToUpper(byte1);
-    // Convert byte 2 and 3, ASCII 0-9 and A-F, to decimal 0-15
-    // Note: no byte 2 hex to decimal conversion for status requests, since byte 2 is used as house code
-    byte2 = byte1 == 'R' ? charToUpper(byte2) : charHexToDecimal(byte2);
-    byte3 = charHexToDecimal(byte3);
+    byte byte1 = toupper(Serial.read());
+    byte byte2 = toupper(Serial.read());
+    byte byte3 = toupper(Serial.read());
+    // Convert byte2 from hex to decimal unless command is request module state
+    if(byte1 != 'R') byte2 = charHexToDecimal(byte2);
+    // Convert byte3 from hex to decimal unless command is wipe module state
+    if(byte1 != 'R' || byte2 != 'W') byte3 = charHexToDecimal(byte3);
     // Check if standard message was received (byte1 = House, byte2 = Unit, byte3 = Command)
     if(byte1 >= 'A' && byte1 <= 'P' && (byte2 <= 0xF || byte2 == '_') && byte3 <= 0xF)
     {
@@ -124,7 +123,7 @@ void processSdMessage()
         sdExtCommand = 0;
       }
     }
-    // Check if scenario execute was received (byte1 = Scenario Seperator, byte2 = Hex 1, byte3 = Hex 2)
+    // Check if scenario execute command was received (byte1 = Scenario Character, byte2 = Hex 1, byte3 = Hex 2)
     else if(byte1 == 'S')
     {
       byte scenario = byte2 * 16 + byte3;
@@ -134,27 +133,51 @@ void processSdMessage()
       Serial.println(scenario, HEX);
       handleSdScenario(scenario);
     }
-    // Check if module status request was received (byte1 = Status Request Seperator, byte2 = House, byte3 = Unit)
-    else if(byte1 == 'R' && byte2 >= 'A' && byte2 <= 'P')
+    // Check if request module state command was received (byte1 = Request State Character, byte2 = House, byte3 = Unit)
+    else if(byte1 == 'R' && ((byte2 >= 'A' && byte2 <= 'P') || byte2 == '*'))
     {
       Serial.print(SERIAL_DATA_MSG);
       Serial.print("R");
       Serial.print(byte2);
-      Serial.println(byte3, HEX);
-      byte3++;
-      X10state state = x10ex.getModuleState(byte2, byte3);
-      byte command = state.isKnown ? state.isOn ? CMD_STATUS_ON : CMD_STATUS_OFF : DATA_UNKNOWN;
-      printX10Message(MODULE_STATE_MSG, byte2, byte3, command, state.data, 0, 0);
+      // All modules
+      if(byte2 == '*')
+      {
+        Serial.println('*');
+        for(short i = 0; i < 256; i++)
+        {
+          sdPrintModuleState((i >> 4) + 0x41, i & 0xF);
+        }
+      }
+      else
+      {
+        if(byte3 <= 0xF)
+        {
+          Serial.println(byte3, HEX);
+          sdPrintModuleState(byte2, byte3);
+        }
+        // All units using specified house code
+        else
+        {
+          Serial.println('*');
+          for(byte i = 0; i < 16; i++)
+          {
+            sdPrintModuleState(byte2, i);
+          }
+        }
+      }
     }
-    else if(byte1 == 'R' && byte2 == 'W' && byte3 == 'X')
+    // Check if request wipe module state command was received (byte1 = Request State Character, byte2 = Wipe Character, byte3 = House)
+    else if(byte1 == 'R' && byte2 == 'W' && ((byte3 >= 'A' && byte3 <= 'P') || byte3 == '*'))
     {
       Serial.print(SERIAL_DATA_MSG);
-      Serial.println("RWX");
-      x10ex.wipeModuleState();
+      Serial.print("RW");
+      Serial.println((char)byte3);
+      x10ex.wipeModuleState(byte3);
       Serial.print(MODULE_STATE_MSG);
-      Serial.println("___");
+      Serial.print(byte3 >= 'A' && byte3 <= 'P' ? (char)byte3 : '*');
+      Serial.println("__");
     }
-    // Unknown data
+    // Unknown command/data
     else
     {
       Serial.println(SERIAL_DATA_ERROR);
@@ -286,6 +309,20 @@ void printX10TypeHouseUnit(const char type[], char house, byte unit, byte comman
   }
 }
 
+void sdPrintModuleState(char house, byte unit)
+{
+  unit++;
+  X10state state = x10ex.getModuleState(house, unit);
+  if(state.isSeen)
+  {
+    printX10Message(
+      MODULE_STATE_MSG, house, unit,
+      state.isKnown ? state.isOn ? CMD_STATUS_ON : CMD_STATUS_OFF : DATA_UNKNOWN,
+      state.data,
+      0, 0);
+  }
+}
+
 void printX10ByteAsHex(byte data)
 {
   Serial.print("x");
@@ -293,15 +330,8 @@ void printX10ByteAsHex(byte data)
   Serial.print(data, HEX);
 }
 
-byte charToUpper(byte input)
-{
-  return input >= 0x61 ? input - 0x20 : input;
-}
-
 byte charHexToDecimal(byte input)
 {
-  // Make sure all characters are upper case
-  input = charToUpper(input);
   // 0123456789  =>  0-15
   if(input >= 0x30 && input <= 0x39) input -= 0x30;
   // ABCDEF  =>  10-15
@@ -315,6 +345,10 @@ void handleSdScenario(byte scenario)
 {
   switch(scenario)
   {
+    //////////////////////////////
+    // Sample Code
+    // Replace with your own setup
+    //////////////////////////////
     case 0x01: sendAllLightsOn(); break;
     case 0x02: sendHallAndKitchenOn(); break;
     case 0x03: sendLivingRoomOn(); break;
@@ -330,6 +364,11 @@ void handleSdScenario(byte scenario)
 // Use this method to trigger scenarios from simple RF/IR remotes
 bool handleUnitScenario(char house, byte unit, byte command, bool isRepeat)
 {
+  //////////////////////////////
+  // Sample Code
+  // Replace with your own setup
+  //////////////////////////////
+  
   // Ignore all house codes except A
   if(house != 'A')
   {
@@ -341,7 +380,7 @@ bool handleUnitScenario(char house, byte unit, byte command, bool isRepeat)
   if(unit == 4)
   {
     handleOldLampModuleState(house, unit, command, isRepeat);
-  }
+  }  
   
   // Unit 5 is a placeholder unit code used by RF and IR remotes that triggers HallAndKitchen scenario
   if(unit == 5)
@@ -439,9 +478,10 @@ void handleOldLampModuleState(char house, byte unit, byte command, bool isRepeat
   }
 }
 
-////////////////
+//////////////////////////////
 // Scenarios
-////////////////
+// Replace with your own setup
+//////////////////////////////
 
 void sendAllLightsOn()
 {
