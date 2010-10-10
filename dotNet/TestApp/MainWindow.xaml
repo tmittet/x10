@@ -1,0 +1,105 @@
+﻿<Window x:Class="TestApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="X10 with Arduino Test Application" Height="527" Width="525" MinWidth="525" MinHeight="451" Closing="Window_Closing" Loaded="Window_Loaded">
+    <Grid Background="#11000000" Height="Auto">
+        <Label Content="House:" Height="28" HorizontalAlignment="Left" Margin="7,39,0,0" Name="lblHouse" VerticalAlignment="Top" />
+        <Label Content="Scenario:" Height="28" HorizontalAlignment="Left" Margin="7,39,0,0" Name="lblScenario" VerticalAlignment="Top" Visibility="Hidden" />
+        <Label Content="Unit:" Height="28" HorizontalAlignment="Left" Margin="7,68,0,0" Name="lblUnit" VerticalAlignment="Top" />
+        <ComboBox Height="23" HorizontalAlignment="Left" Margin="85,41,0,0" Name="cbxHouse" VerticalAlignment="Top" Width="148" SelectionChanged="cbxHouse_SelectionChanged" TabIndex="12">
+            <ComboBoxItem Content="[All]" />
+            <ComboBoxItem Content="A" />
+            <ComboBoxItem Content="B" />
+            <ComboBoxItem Content="C" />
+            <ComboBoxItem Content="D" />
+            <ComboBoxItem Content="E" />
+            <ComboBoxItem Content="F" />
+            <ComboBoxItem Content="G" />
+            <ComboBoxItem Content="H" />
+            <ComboBoxItem Content="I" />
+            <ComboBoxItem Content="J" />
+            <ComboBoxItem Content="K" />
+            <ComboBoxItem Content="L" />
+            <ComboBoxItem Content="M" />
+            <ComboBoxItem Content="N" />
+            <ComboBoxItem Content="O" />
+            <ComboBoxItem Content="P" />
+        </ComboBox>
+        <ComboBox Height="23" HorizontalAlignment="Left" Margin="85,41,0,0" Name="cbxScenario" VerticalAlignment="Top" Width="148" SelectionChanged="cbxScenario_SelectionChanged" IsEditable="True" Visibility="Hidden" KeyUp="cbxScenario_KeyUp" TabIndex="13" />
+        <ComboBox Height="23" HorizontalAlignment="Left" Margin="85,70,0,0" Name="cbxUnit" VerticalAlignment="Top" Width="148" SelectionChanged="cbxUnit_SelectionChanged" TabIndex="14">
+            <ComboBoxItem Content="[All]" />
+            <ComboBoxItem Content="1" />
+            <ComboBoxItem Content="2" />
+            <ComboBoxItem Content="3" />
+            <ComboBoxItem Content="4" />
+            <ComboBoxItem Content="5" />
+            <ComboBoxItem Content="6" />
+            <ComboBoxItem Content="7" />
+            <ComboBoxItem Content="8" />
+            <ComboBoxItem Content="9" />
+            <ComboBoxItem Content="10" />
+            <ComboBoxItem Content="11" />
+            <ComboBoxItem Content="12" />
+            <ComboBoxItem Content="13" />
+            <ComboBoxItem Content="14" />
+            <ComboBoxItem Content="15" />
+            <ComboBoxItem Content="16" />
+        </ComboBox>
+        <RadioButton Content="On" Height="16" HorizontalAlignment="Left" Margin="257,19,0,0" Name="rabOn" VerticalAlignment="Top" GroupName="OnOff" IsEnabled="False" Checked="rabOn_Checked" TabIndex="21" />
+        <RadioButton Content="Off" Height="16" HorizontalAlignment="Left" Margin="301,19,0,0" Name="rabOff" VerticalAlignment="Top" IsChecked="False" GroupName="OnOff" IsEnabled="False" Checked="rabOff_Checked" TabIndex="22" />
+        <Slider Height="23" HorizontalAlignment="Left" Margin="257,47,0,0" Name="sdrBrightness" VerticalAlignment="Top" Width="234" Maximum="100" ValueChanged="sdrBrightness_ValueChanged" IsEnabled="False" SmallChange="1" TickPlacement="None" LargeChange="10" PreviewMouseUp="sdrBrightness_PreviewMouseUp" TabIndex="23" />
+        <Label Content="Command:" Height="28" HorizontalAlignment="Left" Margin="7,97,0,0" Name="lblCommand" VerticalAlignment="Top" />
+        <ComboBox Height="23" HorizontalAlignment="Left" Margin="85,99,0,0" Name="cbxCommand" VerticalAlignment="Top" Width="148" SelectionChanged="cbxCommand_SelectionChanged" TabIndex="15">
+            <ComboBoxItem Content="[None]" />
+            <ComboBoxItem Content="All Units Off" />
+            <ComboBoxItem Content="All Lights On" />
+            <ComboBoxItem Content="On" />
+            <ComboBoxItem Content="Off" />
+            <ComboBoxItem Content="Dim" />
+            <ComboBoxItem Content="Bright" />
+            <ComboBoxItem Content="All Lights Off" />
+            <ComboBoxItem Content="Extended Code" />
+            <ComboBoxItem Content="Hail Request" />
+            <ComboBoxItem Content="Hail Acknowledge" />
+            <ComboBoxItem Content="Pre Set Dim 0" />
+            <ComboBoxItem Content="Pre Set Dim 1" />
+            <ComboBoxItem Content="Extended Data" />
+            <ComboBoxItem Content="Status On" />
+            <ComboBoxItem Content="Status Off" />
+            <ComboBoxItem Content="Status Request" />
+        </ComboBox>
+        <ComboBox Height="23" Margin="253,99,0,0" Name="cbxExtCommand" VerticalAlignment="Top" IsEditable="True" Visibility="Hidden" SelectionChanged="cbxExtCommand_SelectionChanged" HorizontalAlignment="Left" Width="141" KeyUp="cbxExtCommand_KeyUp" IsTextSearchEnabled="False" TabIndex="24" />
+        <TextBox Height="23" Margin="409,99,0,0" MaxLength="4" Name="txtExtData" VerticalAlignment="Top" Visibility="Hidden" TextChanged="txtExtData_TextChanged" HorizontalAlignment="Left" Width="82" TabIndex="25" />
+        <Button Content="Send" Height="23" Margin="176,163,0,0" Name="btnSend" VerticalAlignment="Top" HorizontalAlignment="Left" Width="57" Click="btnSend_Click" TabIndex="32" />
+        <Label Content="Extended Command (hex):" Height="28" HorizontalAlignment="Left" Margin="248,76,0,0" Name="lblExtCommand" VerticalAlignment="Top" Visibility="Hidden" />
+        <Label Content="Data (hex):" HorizontalAlignment="Left" Margin="405,76,0,0" Name="lblExtData" Visibility="Hidden" Height="28" VerticalAlignment="Top" />
+        <TextBox Height="23" HorizontalAlignment="Left" Margin="12,164,0,0" MaxLength="9" Name="txtMessage" VerticalAlignment="Top" Width="158" TabIndex="31" KeyUp="txtMessage_KeyUp" />
+        <Label Content="Serial Message:" Height="28" HorizontalAlignment="Left" Margin="7,140,0,0" Name="lblRaw" VerticalAlignment="Top" Width="150" />
+        <Label Content="Type:" Height="28" HorizontalAlignment="Left" Margin="7,10,0,0" Name="lblType" VerticalAlignment="Top" />
+        <ComboBox Height="23" HorizontalAlignment="Left" Margin="85,12,0,0" Name="cbxType" VerticalAlignment="Top" Width="148" SelectedIndex="0" SelectionChanged="cbxType_SelectionChanged" TabIndex="11">
+            <ComboBoxItem Content="X10 Message" />
+            <ComboBoxItem Content="Scenario Execute" />
+            <ComboBoxItem Content="Module State Request" />
+            <ComboBoxItem Content="Module State Wipe" />
+        </ComboBox>
+        <TabControl Margin="12,198,12,12" Name="tabLogs">
+            <TabItem Header="Sent/Received" Name="tbiSentReceived" TabIndex="41">
+                <Grid>
+                    <TextBox FontFamily="Miriam Fixed" HorizontalAlignment="Left" IsReadOnly="True" Margin="15,35,0,39" Name="txtSentLog" VerticalScrollBarVisibility="Visible" Width="201" TabIndex="51" />
+                    <Label Content="Sent Log:" Height="28" HorizontalAlignment="Left" Margin="10,10,0,0" Name="lblSentLog" VerticalAlignment="Top" />
+                    <TextBox FontFamily="Miriam Fixed" IsReadOnly="True" Margin="240,35,15,39" Name="txtReceivedLog" VerticalScrollBarVisibility="Visible" TabIndex="53" />
+                    <Label Content="Received Log:" Height="28" HorizontalAlignment="Left" Margin="235,10,0,0" Name="lblReceivedLog" VerticalAlignment="Top" Width="83" />
+                    <Button Content="Clear" Height="23" HorizontalAlignment="Left" Margin="159,0,0,10" Name="btnClearSentLog" VerticalAlignment="Bottom" Width="57" TabIndex="52" Click="btnClearSentLog_Click" />
+                    <Button Content="Clear" Height="23" HorizontalAlignment="Right" Margin="0,0,15,10" Name="btnClearReceivedLog" VerticalAlignment="Bottom" Width="57" TabIndex="54" Click="btnClearReceivedLog_Click" />
+                </Grid>
+            </TabItem>
+            <TabItem Name="tbiParsedEvents" Header="Parsed Events" TabIndex="42">
+                <Grid>
+                    <Label Content="Parsed Event Log:" Height="28" HorizontalAlignment="Left" Margin="10,10,0,0" Name="lblParsedEventLog" VerticalAlignment="Top" />
+                    <TextBox FontFamily="Miriam Fixed" IsReadOnly="True" Margin="15,35,15,39" Name="txtParsedEventLog" VerticalScrollBarVisibility="Visible" TabIndex="61" HorizontalScrollBarVisibility="Auto" />
+                    <Button Content="Clear" Height="23" Margin="0,0,15,10" Name="btnClearParsedEventLog" VerticalAlignment="Bottom" HorizontalAlignment="Right" Width="57" TabIndex="62" Click="btnClearParsedEventLog_Click" />
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>
