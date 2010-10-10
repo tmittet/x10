@@ -129,7 +129,7 @@ class X10ex
     plcReceiveCallback_t plcReceiveCallback;
 	  // Transmit and receive fields
     int8_t ioState;
-    volatile bool zcInput, zcOutput;
+    bool volatile zcInput, zcOutput;
     // Transmit fields
     X10msg volatile sendBf[X10_BUFFER_SIZE];
     uint8_t volatile sendBfStart, sendBfEnd;

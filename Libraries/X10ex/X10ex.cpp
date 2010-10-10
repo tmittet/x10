@@ -197,7 +197,7 @@ bool X10ex::sendExt(uint8_t house, uint8_t unit, uint8_t command, uint8_t extDat
   // Validate input
   if(house > 0xF || (unit > 0xF && unit != 0xFF))
   {
-    return 0;
+    return 1;
   }
   // Add house nibble (bit 32-29)
   uint32_t message = (uint32_t)HOUSE_CODE[house] << 28;
@@ -238,7 +238,7 @@ bool X10ex::sendExt(uint8_t house, uint8_t unit, uint8_t command, uint8_t extDat
     // Just reset repetitions
     sendBf[sendBfStart].repetitions = repetitions;
     sendBfLastMs = millis();
-    return 1;
+    return 0;
   }
   // If slots are available in buffer
   else if((sendBfEnd + 2) % X10_BUFFER_SIZE != sendBfStart)
@@ -251,10 +251,13 @@ bool X10ex::sendExt(uint8_t house, uint8_t unit, uint8_t command, uint8_t extDat
       sendBf[sendBfEnd].message = message;
       sendBf[sendBfEnd].repetitions = repetitions;
       sendBfLastMs = millis();
-      return 1;
     }
+    // Return success even if message was not rebuffered because of rebuffer delay
+    // There is really no point in buffering two identical commands in quick succession
+    // If commands must be repeated several times, use the repetitions attribute
+    return 0;
   }
-  return 0;
+  return 1;
 }
 
 X10state X10ex::getModuleState(uint8_t house, uint8_t unit)
