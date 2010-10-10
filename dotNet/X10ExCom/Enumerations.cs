@@ -4,6 +4,7 @@
     {
         Unknown,
         Parser,
+        Debug,
         Serial,
         ModuleState,
         PowerLine,
