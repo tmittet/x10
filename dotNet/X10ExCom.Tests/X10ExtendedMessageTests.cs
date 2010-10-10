@@ -36,7 +36,7 @@ namespace X10ExCom.Tests
         }
 
         [Test, ExpectedException(typeof(ArgumentException))]
-        public void VerifyThatMessageCannotBeCreatedWithNonExtendedCommans()
+        public void VerifyThatMessageCannotBeCreatedWithNonExtendedCommands()
         {
             new X10ExtendedMessage(X10House.A, X10Unit.U01, X10Command.On, 0x31, 0x1F);
         }

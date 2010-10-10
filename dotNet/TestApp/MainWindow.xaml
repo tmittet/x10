@@ -1,7 +1,7 @@
 ﻿<Window x:Class="TestApp.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="X10 with Arduino Test Application" Height="527" Width="525" MinWidth="525" MinHeight="451" Closing="Window_Closing" Loaded="Window_Loaded">
+        Title="X10 with Arduino Test Application" Height="527" Width="525" MinWidth="525" MinHeight="451" Closing="Window_Closing" Loaded="Window_Loaded" Icon="/TestApp;component/Images/X10.ico">
     <Grid Background="#11000000" Height="Auto">
         <Label Content="House:" Height="28" HorizontalAlignment="Left" Margin="7,39,0,0" Name="lblHouse" VerticalAlignment="Top" />
         <Label Content="Scenario:" Height="28" HorizontalAlignment="Left" Margin="7,39,0,0" Name="lblScenario" VerticalAlignment="Top" Visibility="Hidden" />
