@@ -40,68 +40,59 @@ namespace X10ExCom
             }
             message = message.Trim();
             string source = "";
-            X10Message x10Msg;
-            if (message.ToUpper().StartsWith("DEBUG="))
+            if (message.Substring(2, 1) == ":")
             {
-                source = "DB";
-                x10Msg = new X10Debug(message.Substring(6));
+                source = message.Substring(0, 2).ToUpper();
+                message = message.Substring(3);
+            }
+            X10Message x10Msg;
+            if (message.Length >= 3 && message.Substring(0, 3).ToUpper() == "_EX")
+            {
+                x10Msg = new X10Error(message.Substring(3));
             }
             else
             {
-                if (message.Substring(2, 1) == ":")
+                message = message.ToUpper();
+                if (message.Length != 3 && message.Length != 9)
                 {
-                    source = message.Substring(0, 2).ToUpper();
-                    message = message.Substring(3);
+                    throw new ArgumentException(
+                        message.Length + " characters is an invalid message length. " +
+                        "Valid messages are 3 or 9 characters long.");
                 }
-                if (message.Length >= 3 && message.Substring(0, 3).ToUpper() == "_EX")
+                // Standard or Extended
+                if ((message[0] >= 'A' && message[0] <= 'P') || message[0] == '*')
                 {
-                    x10Msg = new X10Error(message.Substring(3));
+                    x10Msg = ParseStandardAndExtended(message);
                 }
                 else
                 {
-                    message = message.ToUpper();
-                    if (message.Length != 3 && message.Length != 9)
+                    if (message.Length != 3)
                     {
                         throw new ArgumentException(
-                            message.Length + " characters is an invalid message length. " +
-                            "Valid messages are 3 or 9 characters long.");
+                            "9 characters is an invalid message length for this type. " +
+                            "Only extended code messages starting with house code A-P can be this length.");
                     }
-                    // Standard or Extended
-                    if ((message[0] >= 'A' && message[0] <= 'P') || message[0] == '*')
+                    // Scenario Execute
+                    if (message[0] == 'S')
                     {
-                        x10Msg = ParseStandardAndExtended(message);
+                        x10Msg = ParseScenario(message);
+                    }
+                    // Module State
+                    else if (message[0] == 'R')
+                    {
+                        x10Msg = ParseModuleState(message);
                     }
                     else
                     {
-                        if (message.Length != 3)
-                        {
-                            throw new ArgumentException(
-                                "9 characters is an invalid message length for this type. " +
-                                "Only extended code messages starting with house code A-P can be this length.");
-                        }
-                        // Scenario Execute
-                        if (message[0] == 'S')
-                        {
-                            x10Msg = ParseScenario(message);
-                        }
-                        // Module State
-                        else if (message[0] == 'R')
-                        {
-                            x10Msg = ParseModuleState(message);
-                        }
-                        else
-                        {
-                            throw new ArgumentException(
-                                message[0] + " is an invalid house/type character. " +
-                                "Valid characters are A-P, S or R.");
-                        }
+                        throw new ArgumentException(
+                            message[0] + " is an invalid house/type character. " +
+                            "Valid characters are A-P, S or R.");
                     }
                 }
             }
             x10Msg.SourceString = source;
             switch (source)
             {
-                case "DB": x10Msg.Source = X10MessageSource.Debug; break;
                 case "XP": x10Msg.Source = X10MessageSource.Parser; break;
                 case "SD": x10Msg.Source = X10MessageSource.Serial; break;
                 case "MS": x10Msg.Source = X10MessageSource.ModuleState; break;

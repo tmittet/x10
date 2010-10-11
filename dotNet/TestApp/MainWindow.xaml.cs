@@ -116,6 +116,39 @@ namespace TestApp
             }
         }
 
+        private bool On
+        {
+            get { return rabOn.IsChecked.HasValue && rabOn.IsChecked.Value; }
+            set
+            {
+                if (value)
+                {
+                    rabOff.IsChecked = false;
+                    rabOn.Checked -= rabOn_Checked;
+                    rabOn.IsChecked = true;
+                    rabOn.Checked += rabOn_Checked;
+                }
+                else
+                {
+                    rabOn.IsChecked = false;
+                    rabOff.Checked -= rabOff_Checked;
+                    rabOff.IsChecked = true;
+                    rabOff.Checked += rabOff_Checked;
+                }
+            }
+        }
+
+        private byte Brightness
+        {
+            get { return Convert.ToByte(sdrBrightness.Value); }
+            set
+            {
+                sdrBrightness.ValueChanged -= sdrBrightness_ValueChanged;
+                sdrBrightness.Value = value;
+                sdrBrightness.ValueChanged += sdrBrightness_ValueChanged;
+            }
+        }
+
         #endregion
 
         #region Constructors
@@ -147,9 +180,16 @@ namespace TestApp
                 message.ToHumanReadableString() +
                 Environment.NewLine;
             txtParsedEventLog.ScrollToEnd();
-
+            if (cbxUpdateUiOnMessage.IsChecked == true && message.Source == X10MessageSource.PowerLine)
+            {
+                UpdateUiOnStateChange(message);
+            }
+            else if (cbxUpdateUiOnStateRequest.IsChecked == true && message.Source == X10MessageSource.ModuleState)
+            {
+                UpdateUiOnStateChange(message);
+            }
         }
-
+        
         #endregion
 
         #region Window/Form Events
@@ -196,6 +236,7 @@ namespace TestApp
                     cbxCommand.Visibility = Visibility.Hidden;
                     rabOn.IsEnabled = false;
                     rabOff.IsEnabled = false;
+                    btnGetState.IsEnabled = false;
                     sdrBrightness.IsEnabled = false;
                     break;                
                 case 2: // Module State Request
@@ -209,6 +250,7 @@ namespace TestApp
                     cbxUnit.Visibility = Visibility.Visible;
                     rabOn.IsEnabled = false;
                     rabOff.IsEnabled = false;
+                    btnGetState.IsEnabled = false;
                     sdrBrightness.IsEnabled = false;
                     break;
                 case 3: // Module State Wipe
@@ -222,6 +264,7 @@ namespace TestApp
                     cbxHouse.Visibility = Visibility.Visible;
                     rabOn.IsEnabled = false;
                     rabOff.IsEnabled = false;
+                    btnGetState.IsEnabled = false;
                     sdrBrightness.IsEnabled = false;
                     break;
                 default: // X10 Message
@@ -235,6 +278,7 @@ namespace TestApp
                     cbxCommand.Visibility = Visibility.Visible;
                     rabOn.IsEnabled = true;
                     rabOff.IsEnabled = true;
+                    btnGetState.IsEnabled = true;
                     sdrBrightness.IsEnabled = true;
                     break;
             }
@@ -243,6 +287,8 @@ namespace TestApp
 
         private void cbxHouse_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            rabOn.IsChecked = false;
+            rabOff.IsChecked = false;
             SelectionChangeUpdate();
         }
 
@@ -258,11 +304,14 @@ namespace TestApp
 
         private void cbxUnit_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            rabOn.IsChecked = false;
+            rabOff.IsChecked = false;
             // If selected message type is Standard Message
             if (cbxType.SelectedIndex == 0)
             {
                 rabOn.IsEnabled = Unit != X10Unit.X;
                 rabOff.IsEnabled = Unit != X10Unit.X;
+                btnGetState.IsEnabled = Unit != X10Unit.X;
                 sdrBrightness.IsEnabled = Unit != X10Unit.X;
             }
             // Update UI
@@ -298,18 +347,34 @@ namespace TestApp
             btnSend_Click(sender, e);
         }
 
+        private void btnGetState_Click(object sender, RoutedEventArgs e)
+        {
+            cbxUpdateUiOnStateRequest.IsChecked = true;
+            try
+            {
+                X10ModuleStateRequest message = new X10ModuleStateRequest(House, Unit);
+                _serial.SendMessage(message);
+                txtSentLog.Text += message + Environment.NewLine;
+                txtSentLog.ScrollToEnd();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("An unexpected error occured. " + ex.Message);
+            }
+        }
+
         private void sdrBrightness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             Command = X10Command.ExtendedCode;
             cbxExtCommand.Text = "0x31 (Pre Set Dim)";
             cbxExtCommand.SelectedValue = "0x31 (Pre Set Dim)";
-            txtExtData.Text = "0x" + Convert.ToByte(Math.Round(sdrBrightness.Value / 100 * 62)).ToString("X").PadLeft(2, '0');
+            txtExtData.Text = "0x" + Convert.ToByte(Math.Round(62D * Brightness / 100)).ToString("X").PadLeft(2, '0');
         }
 
         private void sdrBrightness_PreviewMouseUp(object sender, MouseButtonEventArgs e)
         {
             // Off
-            if (sdrBrightness.Value == 0)
+            if (Brightness == 0)
             {
                 if (rabOff.IsChecked == true)
                 {
@@ -320,10 +385,7 @@ namespace TestApp
             // Pre Set Dim (Extended Code)
             else
             {
-                rabOff.IsChecked = false;
-                rabOn.Checked -= rabOn_Checked;
-                rabOn.IsChecked = true;
-                rabOn.Checked += rabOn_Checked;
+                On = true;
                 btnSend_Click(sender, e);
             }
         }
@@ -366,7 +428,7 @@ namespace TestApp
             }
             catch (Exception ex)
             {
-                MessageBox.Show("An unexpected parser error occured. " + ex.Message);
+                MessageBox.Show("An unexpected error occured. " + ex.Message);
             }
         }
 
@@ -429,6 +491,44 @@ namespace TestApp
             lblExtData.Visibility = extendedVisible;
             cbxExtCommand.Visibility = extendedVisible;
             txtExtData.Visibility = extendedVisible;
+        }
+
+        private void UpdateUiOnStateChange(X10Message message)
+        {
+            if (message is X10StandardMessage)
+            {
+                cbxType.SelectedIndex = 0;
+                X10StandardMessage stdMessage = message as X10StandardMessage;
+                House = stdMessage.House;
+                Unit = stdMessage.Unit;
+                cbxCommand.SelectionChanged -= cbxCommand_SelectionChanged;
+                Command = stdMessage.Command;
+                cbxCommand.SelectionChanged += cbxCommand_SelectionChanged;
+                if (
+                    Command == X10Command.On ||
+                    Command == X10Command.Bright ||
+                    Command == X10Command.Dim ||
+                    Command == X10Command.StatusOn)
+                {
+                    On = true;
+                }
+                else if (Command == X10Command.Off || Command == X10Command.StatusOff)
+                {
+                    On = false;
+                }
+            }
+            if (message is X10ExtendedMessage)
+            {
+                X10ExtendedMessage extMessage = message as X10ExtendedMessage;
+                if (extMessage.ExtendedBrightness > 0)
+                {
+                    if (extMessage.Command != X10Command.StatusOff)
+                    {
+                        On = true;
+                    }
+                    Brightness = extMessage.ExtendedBrightness;
+                }
+            }
         }
 
         #endregion

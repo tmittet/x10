@@ -193,15 +193,16 @@ namespace X10ExCom
                 string[] messages = messageData.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (string message in messages)
                 {
+                    string messageTrimmed = message.Trim(new[] {' ', '\r', '\n'});
                     X10Message x10Message;
                     try
                     {
-                        x10Message = X10Message.Parse(message.Trim(new[] {' ', '\r', '\n'}));
-                        _log.Debug(x10Message.GetType().Name + " parsed successfully: " + message);
+                        x10Message = X10Message.Parse(messageTrimmed);
+                        _log.Debug(x10Message.GetType().Name + " parsed successfully: " + messageTrimmed);
                     }
                     catch (Exception ex)
                     {
-                        string errorMessage = ex.GetType().Name + " thrown when parsing message \"" + message + "\". " + ex.Message;
+                        string errorMessage = ex.GetType().Name + " thrown when parsing message \"" + messageTrimmed + "\". " + ex.Message;
                         _log.Warn(errorMessage);
                         x10Message = new X10Error(X10MessageSource.Parser, "_ExParser", errorMessage);
                     }

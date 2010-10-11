@@ -15,6 +15,18 @@
     {
         "Entry"
         {
+        "MsmKey" = "8:_4DD4BDC393B9508E30372307E55C8C31"
+        "OwnerKey" = "8:_E0CF045E3ECA48C98FABFB4269272681"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_4DD4BDC393B9508E30372307E55C8C31"
+        "OwnerKey" = "8:_9604AB900B874A95FCA79519F89C5BE4"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_9604AB900B874A95FCA79519F89C5BE4"
         "OwnerKey" = "8:_E0CF045E3ECA48C98FABFB4269272681"
         "MsmSig" = "8:_UNDEFINED"
@@ -27,18 +39,6 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_EB3D926B7CE9B3E19E2B2ED6F960BD72"
-        "OwnerKey" = "8:_E0CF045E3ECA48C98FABFB4269272681"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
-        "MsmKey" = "8:_EB3D926B7CE9B3E19E2B2ED6F960BD72"
-        "OwnerKey" = "8:_9604AB900B874A95FCA79519F89C5BE4"
-        "MsmSig" = "8:_UNDEFINED"
-        }
-        "Entry"
-        {
         "MsmKey" = "8:_EB6354067D0E4CDAA25D3A5F67607711"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -46,7 +46,7 @@
         "Entry"
         {
         "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_EB3D926B7CE9B3E19E2B2ED6F960BD72"
+        "OwnerKey" = "8:_E0CF045E3ECA48C98FABFB4269272681"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -58,7 +58,7 @@
         "Entry"
         {
         "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_E0CF045E3ECA48C98FABFB4269272681"
+        "OwnerKey" = "8:_4DD4BDC393B9508E30372307E55C8C31"
         "MsmSig" = "8:_UNDEFINED"
         }
     }
@@ -79,6 +79,14 @@
         "PrivateKeyFile" = "8:"
         "TimeStampServer" = "8:"
         "InstallerBootstrapper" = "3:2"
+            "BootstrapperCfg:{63ACBE69-63AA-4F98-B2B6-99F9E24495F2}"
+            {
+            "Enabled" = "11:TRUE"
+            "PromptEnabled" = "11:TRUE"
+            "PrerequisitesLocation" = "2:1"
+            "Url" = "8:"
+            "ComponentsUrl" = "8:"
+            }
         }
         "Release"
         {
@@ -95,6 +103,27 @@
         "PrivateKeyFile" = "8:"
         "TimeStampServer" = "8:"
         "InstallerBootstrapper" = "3:2"
+            "BootstrapperCfg:{63ACBE69-63AA-4F98-B2B6-99F9E24495F2}"
+            {
+            "Enabled" = "11:TRUE"
+            "PromptEnabled" = "11:TRUE"
+            "PrerequisitesLocation" = "2:1"
+            "Url" = "8:"
+            "ComponentsUrl" = "8:"
+                "Items"
+                {
+                    "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:.NETFramework,Version=v4.0,Profile=Client"
+                    {
+                    "Name" = "8:Microsoft .NET Framework 4 Client Profile (x86 and x64)"
+                    "ProductCode" = "8:.NETFramework,Version=v4.0,Profile=Client"
+                    }
+                    "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:Microsoft.Windows.Installer.3.1"
+                    {
+                    "Name" = "8:Windows Installer 3.1"
+                    "ProductCode" = "8:Microsoft.Windows.Installer.3.1"
+                    }
+                }
+            }
         }
     }
     "Deployable"
@@ -124,20 +153,20 @@
         }
         "File"
         {
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_9604AB900B874A95FCA79519F89C5BE4"
+            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_4DD4BDC393B9508E30372307E55C8C31"
             {
             "AssemblyRegister" = "3:1"
             "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:X10ExCom, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL"
+            "AssemblyAsmDisplayName" = "8:log4net, Version=1.2.10.0, Culture=neutral, PublicKeyToken=1b44e1d426115821, processorArchitecture=MSIL"
                 "ScatterAssemblies"
                 {
-                    "_9604AB900B874A95FCA79519F89C5BE4"
+                    "_4DD4BDC393B9508E30372307E55C8C31"
                     {
-                    "Name" = "8:X10ExCom.dll"
+                    "Name" = "8:log4net.dll"
                     "Attributes" = "3:512"
                     }
                 }
-            "SourcePath" = "8:X10ExCom.dll"
+            "SourcePath" = "8:log4net.dll"
             "TargetName" = "8:"
             "Tag" = "8:"
             "Folder" = "8:_411387192C0C44B6BB579B7F7C944CD0"
@@ -155,20 +184,20 @@
             "IsDependency" = "11:TRUE"
             "IsolateTo" = "8:"
             }
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_EB3D926B7CE9B3E19E2B2ED6F960BD72"
+            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_9604AB900B874A95FCA79519F89C5BE4"
             {
             "AssemblyRegister" = "3:1"
             "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:log4net, Version=1.2.10.0, Culture=neutral, PublicKeyToken=1b44e1d426115821, processorArchitecture=MSIL"
+            "AssemblyAsmDisplayName" = "8:X10ExCom, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL"
                 "ScatterAssemblies"
                 {
-                    "_EB3D926B7CE9B3E19E2B2ED6F960BD72"
+                    "_9604AB900B874A95FCA79519F89C5BE4"
                     {
-                    "Name" = "8:log4net.dll"
+                    "Name" = "8:X10ExCom.dll"
                     "Attributes" = "3:512"
                     }
                 }
-            "SourcePath" = "8:log4net.dll"
+            "SourcePath" = "8:X10ExCom.dll"
             "TargetName" = "8:"
             "Tag" = "8:"
             "Folder" = "8:_411387192C0C44B6BB579B7F7C944CD0"
@@ -262,15 +291,15 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:X10 Test App"
-        "ProductCode" = "8:{FA198049-F4FC-4743-87FD-CCB2490D8B74}"
-        "PackageCode" = "8:{B73F723B-119D-4B5F-9323-271D99E38F0E}"
+        "ProductCode" = "8:{3CC2543D-0A2C-4C66-AC09-FE180E26604A}"
+        "PackageCode" = "8:{AE7499B4-0D7B-488F-8691-A9622C0E9D73}"
         "UpgradeCode" = "8:{0122B454-02F6-4ED7-BB67-2A2F379BFF66}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:TRUE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:FALSE"
-        "ProductVersion" = "8:1.0.0"
+        "ProductVersion" = "8:1.0.1"
         "Manufacturer" = "8:X10.Net"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"

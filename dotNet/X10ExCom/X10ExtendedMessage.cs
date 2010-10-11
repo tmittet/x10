@@ -8,6 +8,76 @@ namespace X10ExCom
         public byte ExtendedData { get; set; }
 
         /// <summary>
+        /// ExtendedCategoryValue is the first nibble (4 bits) of the ExtendedCommand.
+        /// Note: Only used with ExtendedCode commands.
+        /// </summary>
+        public byte ExtendedCategoryValue
+        {
+            get { return Convert.ToByte(Command == X10Command.ExtendedCode ? ExtendedCommand >> 4 : 0); }
+        }
+
+        /// <summary>
+        /// ExtendedFunctionValue is the last nibble (4 bits) of the ExtendedCommand.
+        /// Note: Only used with ExtendedCode commands.
+        /// </summary>
+        public byte ExtendedFunctionValue
+        {
+            get { return Convert.ToByte(Command == X10Command.ExtendedCode ? ExtendedCommand & 0xF : 0); }
+        }
+
+        /// <summary>
+        /// ExtendedCategoryName is parsed by looking up ExtendedCategoryValue in ExtendedType enum.
+        /// Note: Only used with ExtendedCode commands.
+        /// </summary>
+        public string ExtendedCategoryName
+        {
+            get
+            {
+                if (Command != X10Command.ExtendedCode) return String.Empty;
+                X10ExtendedCategory result;
+                return
+                    Enum.TryParse(((X10ExtendedCategory)(ExtendedCommand & 0xF0)).ToString(), false, out result) ?
+                    result.ToString() :
+                    "Unknown";
+            }
+        }
+
+        /// <summary>
+        /// ExtendedFunctionName is parsed by looking up ExtendedFunctionValue in ExtendedType enum.
+        /// Note: Only used with ExtendedCode commands.
+        /// </summary>
+        public string ExtendedFunctionName
+        {
+            get
+            {
+                if (Command != X10Command.ExtendedCode) return String.Empty;
+                X10ExtendedFunction result;
+                return
+                    Enum.TryParse(((X10ExtendedFunction)(ExtendedCommand)).ToString(), false, out result) ?
+                    result.ToString() :
+                    "Unknown";
+            }
+        }
+
+        /// <summary>
+        /// ExtendedBrightness is calculated from ExtendedData when command is StatusOn, StatusOff
+        /// or command is ExtendedCode and ExtendedCommand is PreSetDim.
+        /// </summary>
+        public byte ExtendedBrightness
+        {
+            get
+            {
+                return
+                    Convert.ToByte(
+                        Command == X10Command.StatusOn ||
+                        Command == X10Command.StatusOff ||
+                        (Command == X10Command.ExtendedCode && ExtendedCommand == (byte)X10ExtendedFunction.PreSetDim) ?
+                        Math.Round(100D * (ExtendedData & 0x3F) / 62) :
+                        0);
+            }
+        }
+
+        /// <summary>
         /// Creates new X10 extended message.
         /// </summary>
         /// <param name="house">Valid range is A-P.</param>
@@ -53,14 +123,36 @@ namespace X10ExCom
 
         public override string ToHumanReadableString()
         {
-            return String.Format(
-                "Type = {0}, Module = {1}{2}, Command = {3}, ExtCommand = 0x{4}, ExtData = 0x{5}",
+            string standardMessage = String.Format(
+                "Type = {0}, Module = {1}{2}, Command = {3}",
                 "ExtendedMessage",
                 Convert.ToChar(House),
-                NibbleToDecimal((byte)Unit, "_"),
-                Command,
-                ExtendedCommand.ToString("X").PadLeft(2, '0'),
-                ExtendedData.ToString("X").PadLeft(2, '0'));
+                NibbleToDecimal((byte) Unit, "_"),
+                Command);
+            switch (Command)
+            {
+                case X10Command.ExtendedCode:
+                    return String.Format(
+                        "{0}, Category = {1} (0x{2}), Function = {3} (0x{4}), Data = 0x{5}",
+                        standardMessage,
+                        ExtendedCategoryName,
+                        ExtendedCategoryValue.ToString("X"),
+                        ExtendedFunctionName,
+                        ExtendedFunctionValue.ToString("X"),
+                        ExtendedData.ToString("X").PadLeft(2, '0'));
+                case X10Command.StatusOn:
+                case X10Command.StatusOff:
+                    return String.Format(
+                        "{0}, Brightness = {1}%",
+                        standardMessage,
+                        ExtendedBrightness);
+                default:
+                    return String.Format(
+                        "{0}, ExtCommand = 0x{1}, Data = 0x{2}",
+                        standardMessage,
+                        ExtendedCommand,
+                        ExtendedData);
+            }
         }
 
         private void Validate(byte extendedCommand, byte extendedData)
