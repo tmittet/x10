@@ -31,7 +31,7 @@
 // Set buffer size to the number of individual messages you would like to
 // buffer, plus one. The buffer is useful when triggering a scenario e.g.
 // Each slot in the buffer uses 5 bytes of memory
-#define X10_BUFFER_SIZE      16
+#define X10_BUFFER_SIZE      17
 // Set the min delay, in ms, between buffering of two identical messages
 // This delay does not affect message repeats (when button is held)
 #define X10_REBUFFER_DELAY  500
