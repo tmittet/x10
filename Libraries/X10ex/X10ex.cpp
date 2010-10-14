@@ -43,7 +43,7 @@ void x10exZeroCross_wrapper()
   }
 }
 
-// Hack to get extra interrupt on non ATmega1280 pin 4
+// Hack to get extra interrupt on non ATmega1280 pin 4 to 7
 #if not defined(__AVR_ATmega1280__)
 SIGNAL(PCINT2_vect)
 {
@@ -120,12 +120,12 @@ void X10ex::begin()
   attachInterrupt(zeroCrossInt, x10exZeroCross_wrapper, CHANGE);
   // Make sure interrupts are enabled
   sei();
-  // Hack to get extra interrupt on non ATmega1280 pin 4
+  // Hack to get extra interrupt on non ATmega1280 pin 4 to 7
 #if not defined(__AVR_ATmega1280__)
-  if(zeroCrossInt == 2 && zeroCrossPin == 4)
+  if(zeroCrossInt == 2 && zeroCrossPin >= 4 && zeroCrossPin <= 7)
   {
-    PCMSK2 |= digitalPinToBitMask(4);
-    PCICR |= 0x01 << digitalPinToPort(4) - 2;
+    PCMSK2 |= digitalPinToBitMask(zeroCrossPin);
+    PCICR |= 0x01 << digitalPinToPort(zeroCrossPin) - 2;
   }
 #endif
 }
