@@ -317,20 +317,23 @@ void X10ex::wipeModuleState(uint8_t house)
 
 void X10ex::zeroCross()
 {
-  zcOutput = 0;
   zcInput = 0;
   // Start IO timer
   TCNT1 = 1;
   TCCR1B |= _BV(CS10);
   // Get bit to output from buffer
-  if(sendBf[sendBfStart].repetitions && (zeroCount > X10_PRE_CMD_CYCLES || sentCount))
+  if(sendBf[sendBfStart].repetitions && (sentCount || zeroCount > X10_PRE_CMD_CYCLES - 1))
   {
-    zcOutput = getBitToSend();
     if(zcOutput)
     {
       // Start output as soon as possible after zero crossing
       fastDigitalWrite(transmitPort, transmitBitMask, HIGH);
     }
+    zcOutput = getBitToSend();
+  }
+  else
+  {
+    zcOutput = 0;
   }
 }
 
