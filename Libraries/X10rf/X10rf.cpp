@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 RF receiver library, v1.1.                                       */
+/* X10 RF receiver library, v1.2.                                       */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -14,7 +14,7 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu June 2010.                 */
+/* Written by Thomas Mittet thomas@mittet.nu October 2010.              */
 /************************************************************************/
 
 #include "WProgram.h"
@@ -41,8 +41,6 @@ X10rf::X10rf(uint8_t receiveInt, uint8_t receivePin, rfReceiveCallback_t rfRecei
 {
   this->receiveInt = receiveInt;
   this->receivePin = receivePin;
-  this->receivePort = digitalPinToPort(receivePin);
-  this->receiveBitMask = digitalPinToBitMask(receivePin);
   this->rfReceiveCallback = rfReceiveCallback;
   x10rfInstance = this;
 }
@@ -56,7 +54,7 @@ void X10rf::begin()
   if(rfReceiveCallback)
   {
     pinMode(receivePin, INPUT);
-    attachInterrupt(receiveInt, x10rfReceive_wrapper, CHANGE);
+    attachInterrupt(receiveInt, x10rfReceive_wrapper, RISING);
   }
 }
 
@@ -66,68 +64,60 @@ void X10rf::begin()
 
 void X10rf::receive()
 {
-  // Receive pin is Low
-  if(!(*portInputRegister(receivePort) & receiveBitMask))
+  uint16_t lengthUs = micros() - riseUs;
+  riseUs = micros();
+  if(lengthUs >= X10_RF_RSB_MIN && lengthUs <= X10_RF_SB_MAX)
   {
-    lowUs = micros();
-  }
-  // Receive pin is High
-  else
-  {
-    if(lowUs)
+    // Since receiving every command repeat will waste CPU cycles, let's assume that a repeated
+    // start burst received within a certain threshold means that the same command is sent again
+    if(receiveEnded && millis() > receiveEnded && millis() - receiveEnded < X10_RF_REPEAT_THRESHOLD)
     {
-      lowUs = micros() - lowUs;
-      if(lowUs >= X10_RF_SB_MIN && lowUs <= X10_RF_SB_MAX)
+      receiveEnded = millis();
+      rfReceiveCallback(house, unit, command, 1);
+    }
+    else
+    {
+      receiveEnded = 0;
+      receiveBuffer = 0;
+      if(lengthUs >= X10_RF_SB_MIN)
       {
-        // Since receiving every command repeat will waste CPU cycles, let's assume that a
-        // consecutive command received within a certain threshold is the same as the last one
-        if(receiveEnded && millis() > receiveEnded && millis() - receiveEnded < X10_RF_REPEAT_THRESHOLD)
-        {
-          receiveEnded = millis();
-          rfReceiveCallback(house, unit, command, 1);
-        }
-        else
-        {
-          receiveEnded = 0;
-          receiveBuffer = 0;
-          receivedCount = 1;
-        }
-      }
-      else if(receivedCount)
-      {
-        // Binary one received: add to buffer
-        if(lowUs >= X10_RF_BIT1_MIN && lowUs <= X10_RF_BIT1_MAX)
-        {
-          receiveBuffer += 1LU << receivedCount - 1;
-        }
-        // Invalid pulse length: stop receiving
-        else if(lowUs < X10_RF_BIT0_MIN || lowUs > X10_RF_BIT0_MAX)
-        {
-          receivedCount = -1;
-        }
-        // Check that unused bits are not set
-        if(
-          (receivedCount == 8 && (receiveBuffer & B11010000) != 0) ||
-          (receivedCount == 24 && ((receiveBuffer >> 16) & B11100000) != 0))
-        {
-          receivedCount = -1;
-        }
-        // Receiving bitwize complement bits (9-16 and 25-32): verify and stop if invalid
-        else if(
-          ((receivedCount > 8 && receivedCount <= 16) || (receivedCount > 24 && receivedCount <= 32)) &&
-          (receiveBuffer >> receivedCount - 9) & B1 == (receiveBuffer >> receivedCount - 1) & B1)
-        {
-          receivedCount = -1;
-        }
-        // Receive complete: parse message
-        if(receivedCount == 32)
-        {
-          receivedCount = -1;
-          handleCommand(receiveBuffer & 0xFF, (receiveBuffer >> 16) & 0xFF);
-        }
-        receivedCount++;
+        receivedCount = 1;
       }
     }
+  }
+  else if(receivedCount)
+  {
+    // Binary one received: add to buffer
+    if(lengthUs >= X10_RF_BIT1_MIN && lengthUs <= X10_RF_BIT1_MAX)
+    {
+      receiveBuffer += 1LU << receivedCount - 1;
+    }
+    // Invalid pulse length: stop receiving
+    else if(lengthUs < X10_RF_BIT0_MIN || lengthUs > X10_RF_BIT0_MAX)
+    {
+      receivedCount = -1;
+    }
+    // Check that unused bits are not set
+    if(
+      (receivedCount == 8 && (receiveBuffer & B11010000) != 0) ||
+      (receivedCount == 24 && ((receiveBuffer >> 16) & B11100000) != 0))
+    {
+      receivedCount = -1;
+    }
+    // Receiving bitwize complement bits (9-16 and 25-32): verify and stop if invalid
+    else if(
+      ((receivedCount > 8 && receivedCount <= 16) || (receivedCount > 24 && receivedCount <= 32)) &&
+      (receiveBuffer >> receivedCount - 9) & B1 == (receiveBuffer >> receivedCount - 1) & B1)
+    {
+      receivedCount = -1;
+    }
+    // Receive complete: parse message
+    if(receivedCount == 32)
+    {
+      receivedCount = -1;
+      handleCommand(receiveBuffer & 0xFF, (receiveBuffer >> 16) & 0xFF);
+    }
+    receivedCount++;
   }
 }
 
