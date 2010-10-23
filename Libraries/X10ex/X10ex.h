@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.2.         */
+/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.3.         */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -14,7 +14,7 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu September 2010.            */
+/* Written by Thomas Mittet thomas@mittet.nu October 2010.              */
 /************************************************************************/
 
 #ifndef X10ex_h
@@ -39,6 +39,9 @@
 // data is stored in volatile memory and cleared on reboot. When set to 0:
 // state isn't stored at all and compiler ignores state code
 #define X10_PERSIST_STATE     1
+// Length of module names stored in EEPROM, do not change if you don't
+// know what you are doing. 4 and 8 should be valid, but this isn't tested.
+#define X10_INFO_NAME_LEN    16
 // Enable this to use X10 standard message PRE_SET_DIM commands.
 // PRE_SET_DIM commands do not work with any of the European modules I've
 // tested. I have no idea if it works at all, but it's part of the X10
@@ -72,10 +75,15 @@
 #define CMD_STATUS_REQUEST    B1111
 
 #define EXC_PRE_SET_DIM       B00110001
-#define EXC_DIM_TIME_4        B00
-#define EXC_DIM_TIME_30       B01
-#define EXC_DIM_TIME_60       B10
-#define EXC_DIM_TIME_300      B11
+#define EXC_DIM_TIME_4        B00 // 0
+#define EXC_DIM_TIME_30       B01 // 1
+#define EXC_DIM_TIME_60       B10 // 2
+#define EXC_DIM_TIME_300      B11 // 3
+
+#define MODULE_TYPE_UNKNOWN   B00 // 0
+#define MODULE_TYPE_APPLIANCE B01 // 1
+#define MODULE_TYPE_DIMMER    B10 // 2
+#define MODULE_TYPE_SENSOR    B11 // 3
 
 // Used when buffering messages
 struct X10msg
@@ -91,6 +99,13 @@ struct X10state
   bool isKnown; // Is true when module state ON/OFF is known
   bool isOn;    // Is true when appliance/dimmer module is ON
   uint8_t data;
+};
+
+// Used when returning module type and name
+struct X10info
+{
+  uint8_t type;
+  char name[X10_INFO_NAME_LEN + 1];
 };
 
 class X10ex
@@ -115,7 +130,15 @@ class X10ex
     bool sendExtDim(uint8_t house, uint8_t unit, uint8_t percent, uint8_t time, uint8_t repetitions);
     bool sendExt(uint8_t house, uint8_t unit, uint8_t command, uint8_t extData, uint8_t extCommand, uint8_t repetitions);
     X10state getModuleState(uint8_t house, uint8_t unit);
-    void wipeModuleState(uint8_t house = '*');
+    void wipeModuleState(uint8_t house = '*', uint8_t unit = 0);
+    X10info getModuleInfo(uint8_t house, uint8_t unit);
+    void setModuleType(uint8_t house, uint8_t unit, uint8_t type);
+#if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
+    bool setModuleName(uint8_t house, uint8_t unit, char name[X10_INFO_NAME_LEN], uint8_t length = X10_INFO_NAME_LEN);
+#endif
+    void wipeModuleInfo(uint8_t house = '*', uint8_t unit = 0);
+    uint8_t percentToX10Brightness(uint8_t brightness, uint8_t time = EXC_DIM_TIME_4);
+    uint8_t x10BrightnessToPercent(uint8_t brightness);
     void zeroCross();
     void ioTimer();
   
@@ -149,8 +172,13 @@ class X10ex
     void receiveStandardMessage();
     void receiveExtendedMessage();
 #if X10_PERSIST_STATE
-    void updateModuleState(uint8_t index);
+    void updateModuleState(uint8_t house, uint8_t unit);
 #endif
+    void wipeModuleData(uint8_t house, uint8_t unit, bool info);
+    uint8_t eepromRead(uint16_t address);
+    uint8_t eepromRead(uint8_t house, uint8_t unit, uint16_t offset = 0);
+    uint8_t eepromWrite(uint16_t address, uint8_t data);
+    uint8_t eepromWrite(uint8_t house, uint8_t unit, uint8_t data, uint16_t offset = 0);
     void clearReceiveBuffer();
     uint8_t parseHouseCode(uint8_t house);
     int8_t findCodeIndex(const uint8_t codeList[16], uint8_t code);

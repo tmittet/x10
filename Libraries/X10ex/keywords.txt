@@ -8,6 +8,7 @@
 
 X10ex	KEYWORD1
 X10state	KEYWORD1
+X10info	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
@@ -16,11 +17,16 @@ X10state	KEYWORD1
 begin	KEYWORD2
 sendAddress	KEYWORD2
 sendCmd	KEYWORD2
-sendDim	KEYWORD2
 sendExt	KEYWORD2
 sendExtDim	KEYWORD2
 getModuleState	KEYWORD2
 wipeModuleState	KEYWORD2
+getModuleInfo	KEYWORD2
+setModuleType	KEYWORD2
+setModuleName	KEYWORD2
+wipeModuleInfo	KEYWORD2
+percentToX10Brightness	KEYWORD2
+x10BrightnessToPercent	KEYWORD2
 
 ######################################
 # Instances (KEYWORD2)
@@ -55,3 +61,8 @@ EXC_DIM_TIME_4	LITERAL1
 EXC_DIM_TIME_30	LITERAL1
 EXC_DIM_TIME_60	LITERAL1
 EXC_DIM_TIME_300	LITERAL1
+
+MODULE_TYPE_UNKNOWN	LITERAL1
+MODULE_TYPE_APPLIANCE	LITERAL1
+MODULE_TYPE_DIMMER	LITERAL1
+MODULE_TYPE_SENSOR	LITERAL1

@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.2.         */
+/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.3.         */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -14,7 +14,7 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu September 2010.            */
+/* Written by Thomas Mittet thomas@mittet.nu October 2010.              */
 /************************************************************************/
 
 #include "WProgram.h"
@@ -37,29 +37,20 @@ X10ex *x10exInstance = NULL;
 
 void x10exZeroCross_wrapper()
 {
-  if(x10exInstance)
-  {
-    x10exInstance->zeroCross();
-  }
+  if(x10exInstance) x10exInstance->zeroCross();
 }
 
-// Hack to get extra interrupt on non ATmega1280 pin 4 to 7
-#if not defined(__AVR_ATmega1280__)
+// Hack to get extra interrupt on non ATmega8, 168 and 328 pin 4 to 7
+#if defined(__AVR_ATmega8__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__)
 SIGNAL(PCINT2_vect)
 {
-  if(x10exInstance)
-  {
-    x10exInstance->zeroCross();
-  }
+  if(x10exInstance) x10exInstance->zeroCross();
 }
 #endif
 
 void x10exIoTimer_wrapper()
 {
-  if(x10exInstance)
-  {
-    x10exInstance->ioTimer();
-  }
+  if(x10exInstance) x10exInstance->ioTimer();
 }
 
 ISR(TIMER1_OVF_vect)
@@ -120,8 +111,8 @@ void X10ex::begin()
   attachInterrupt(zeroCrossInt, x10exZeroCross_wrapper, CHANGE);
   // Make sure interrupts are enabled
   sei();
-  // Hack to get extra interrupt on non ATmega1280 pin 4 to 7
-#if not defined(__AVR_ATmega1280__)
+  // Hack to get extra interrupt on non ATmega8, 168 and 328 pin 4 to 7
+#if defined(__AVR_ATmega8__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328P__)
   if(zeroCrossInt == 2 && zeroCrossPin >= 4 && zeroCrossPin <= 7)
   {
     PCMSK2 |= digitalPinToBitMask(zeroCrossPin);
@@ -159,7 +150,7 @@ bool X10ex::sendDim(uint8_t house, uint8_t unit, uint8_t percent, uint8_t repeti
   }
   else
   {
-    uint8_t brightness = percent >= 100 ? 31 : round(percent / 100.0 * 31.0);
+    uint8_t brightness = percentToX10Brightness(percent * 2);
     return sendExt(
       house, unit, brightness >> 4 ? CMD_PRE_SET_DIM_1 : CMD_PRE_SET_DIM_0,
       // Reverse nibble before sending
@@ -180,8 +171,7 @@ bool X10ex::sendExtDim(uint8_t house, uint8_t unit, uint8_t percent, uint8_t tim
   }
   else
   {
-    uint8_t data = percent >= 100 ? 62 : round(percent / 100.0 * 62.0);
-    data |= time >= B11 ? B11000000 : time << 6;
+    uint8_t data = percentToX10Brightness(percent, time);
     return sendExt(
       house, unit, CMD_EXTENDED_CODE,
       data, EXC_PRE_SET_DIM,
@@ -262,26 +252,26 @@ bool X10ex::sendExt(uint8_t house, uint8_t unit, uint8_t command, uint8_t extDat
 
 X10state X10ex::getModuleState(uint8_t house, uint8_t unit)
 {
-  house = parseHouseCode(house);
-  unit--;
   bool isSeen = 0;
   bool isKnown = 0;
   bool isOn = 0;
-  uint8_t data;
+  uint8_t data = 0;
 #if X10_PERSIST_STATE
-  uint8_t stateIx = house << 4 | unit;
   // Validate input
   #if X10_PERSIST_STATE == 1
-  uint8_t state = eeprom_read_byte((unsigned char *)stateIx) + 1;
+  uint8_t state = eepromRead(house, unit);
   #else
-  uint8_t state = moduleState[stateIx];
+  house = parseHouseCode(house);
+  unit--;
+  uint8_t state = 0;
+  if(house <= 0xF && unit <= 0xF) state = moduleState[house << 4 | unit];
   #endif
   // Bit 1 and 2 in state byte has the state, last 6 bits is brightness
   // 00 = Not seen, Not known, Not On
   // 01 = Seen, Not known, Not On
   // 10 = Seen, Known, Not On
   // 11 = Seen, Known, On
-  if(house <= 0xF && unit <= 0xF && state & B11000000)
+  if(state & B11000000)
   {
     isSeen = 1;
     isKnown = state & B10000000;
@@ -292,23 +282,105 @@ X10state X10ex::getModuleState(uint8_t house, uint8_t unit)
   return (X10state) { isSeen, isKnown, isOn, data };
 }
 
-// NOTE: If house is outside range A-P, state of all modules is wiped
-void X10ex::wipeModuleState(uint8_t house)
+// WARNING:
+// - If house is outside range A-P, state of all modules is wiped
+// - If unit is outside range 1-16, state of all modules in house is wiped
+void X10ex::wipeModuleState(uint8_t house, uint8_t unit)
 {
 #if X10_PERSIST_STATE
-  house = parseHouseCode(house);
-  uint16_t ix = house <= 0xF ? house << 4 : 0;
-  uint16_t endIx = house <= 0xF ? ix + 16 : 256;
-  while(ix < endIx)
+  wipeModuleData(house, unit, 0);
+#endif
+}
+
+X10info X10ex::getModuleInfo(uint8_t house, uint8_t unit)
+{
+  uint8_t infoData = eepromRead(house, unit, 256);
+  X10info info;
+  info.type = infoData >> 6;
+  uint8_t ix = 0;
+#if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
+  if(infoData & B100000)
   {
-  #if X10_PERSIST_STATE == 1
-    eeprom_write_byte((unsigned char *)ix, 255);
-  #else
-    moduleState[ix] = 0;
-  #endif
-    ix++;
+    uint16_t nameAddr = (infoData & B11111) * X10_INFO_NAME_LEN + 512;
+    while(ix < X10_INFO_NAME_LEN)
+    {
+      info.name[ix] = eepromRead(nameAddr + ix);
+      if(info.name[ix] == '\0') break;
+      ix++;
+    }
   }
 #endif
+  info.name[ix] = '\0';
+  return info;
+}
+
+void X10ex::setModuleType(uint8_t house, uint8_t unit, uint8_t type)
+{
+  if(type <= B11) eepromWrite(house, unit, (eepromRead(house, unit, 256) | B11000000) & (type << 6 | B111111), 256);
+}
+
+#if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
+bool X10ex::setModuleName(uint8_t house, uint8_t unit, char name[X10_INFO_NAME_LEN], uint8_t length)
+{
+  uint16_t nameAddr;
+  uint8_t infoData = eepromRead(house, unit, 256);
+  if(infoData & B100000)
+  {
+    nameAddr = (infoData & B11111) * X10_INFO_NAME_LEN + 512;
+  }
+  else
+  {
+    // Find empty slot in EEPROM
+    nameAddr = 512;
+    while(nameAddr < 1024)
+    {
+      if(eepromRead(nameAddr) == '\0') break;
+      nameAddr += X10_INFO_NAME_LEN;
+    }
+    // If we have run out of space: abort by returning error code
+    if(nameAddr > 1024 - X10_INFO_NAME_LEN) return 1;
+    // Update module pointer to name address
+    eepromWrite(
+      house, unit,
+      infoData & B11000000 | B100000 | (nameAddr / X10_INFO_NAME_LEN - 512),
+      256);
+  }
+  for(uint8_t ix = 0; ix < X10_INFO_NAME_LEN; ix++)
+  {
+    if(name[ix] && ix < length)
+    {
+      eepromWrite(nameAddr + ix, name[ix]);
+    }
+    else
+    {
+      eepromWrite(nameAddr + ix, '\0');
+      // Clear module pointer to name address if name is cleared
+      if(!ix) eepromWrite(house, unit, infoData & B11000000, 256);
+      break;
+    }
+  }
+  return 0;
+}
+#endif
+
+// WARNING:
+// - If house is outside range A-P, all module info is wiped
+// - If unit is outside range 1-16, all module info in house is wiped
+void X10ex::wipeModuleInfo(uint8_t house, uint8_t unit)
+{
+  wipeModuleData(house, unit, 1);
+}
+
+uint8_t X10ex::percentToX10Brightness(uint8_t brightness, uint8_t time)
+{
+  brightness = brightness >= 100 ? 62 : round(brightness / 100.0 * 62.0);
+  brightness |= time >= B11 ? B11000000 : time << 6;
+  return brightness;
+}
+
+uint8_t X10ex::x10BrightnessToPercent(uint8_t brightness)
+{
+  return round(100.0 * (brightness & B111111) / 62.0);
 }
 
 //////////////////////////////
@@ -324,11 +396,8 @@ void X10ex::zeroCross()
   // Get bit to output from buffer
   if(sendBf[sendBfStart].repetitions && (sentCount || zeroCount > X10_PRE_CMD_CYCLES - 1))
   {
-    if(zcOutput)
-    {
-      // Start output as soon as possible after zero crossing
-      fastDigitalWrite(transmitPort, transmitBitMask, HIGH);
-    }
+    // Start output as soon as possible after zero crossing
+    if(zcOutput) fastDigitalWrite(transmitPort, transmitBitMask, HIGH);
     zcOutput = getBitToSend();
   }
   else
@@ -428,16 +497,10 @@ bool X10ex::getBitToSend()
       if(sentCount > 22 && sentCount <= 40)
       {
         output = 0;
-        if(sentCount == 40 && zeroCount <= 2)
-        {
-          sentCount--;
-        }
+        if(sentCount == 40 && zeroCount <= 2) sentCount--;
       }
       // Part one sent: restart by sending new start sequence then start at bit 21 in buffer
-      if(sentCount == 40)
-      {
-        sendOffset = 40;
-      }
+      if(sentCount == 40) sendOffset = 40;
     }
     // All messages end after 31 bits (the 62nd zero crossing)
     // If type is standard X10 message with no unit code: end after part one (11 bits)
@@ -474,10 +537,7 @@ void X10ex::receiveMessage()
   {
     receivedBits++;
     // Buffer one byte
-    if(receivedBits < 9)
-    {
-      receiveBuffer += receivedDataBit << 8 - receivedBits;
-    }
+    if(receivedBits < 9) receiveBuffer += receivedDataBit << 8 - receivedBits;
     // At zero crossing 22 standard message is complete: parse it
     if(receivedCount == 22)
     {
@@ -497,10 +557,7 @@ void X10ex::receiveMessage()
       uint8_t houseIx = findCodeIndex(HOUSE_CODE, rxHouse);
       uint8_t unitIx = findCodeIndex(UNIT_CODE, rxExtUnit != DATA_UNKNOWN ? rxExtUnit : rxUnit);
 #if X10_PERSIST_STATE
-      if(unitIx != 0xFF)
-      {
-        updateModuleState(houseIx << 4 | unitIx);
-      }
+      if(unitIx != 0xFF) updateModuleState(houseIx, unitIx);
 #endif
       // Trigger receive callback
       plcReceiveCallback(houseIx + 65, unitIx + 1, rxCommand, rxData, rxExtCommand, receivedBits);
@@ -569,12 +626,12 @@ void X10ex::receiveExtendedMessage()
 }
 
 #if X10_PERSIST_STATE
-void X10ex::updateModuleState(uint8_t index)
+void X10ex::updateModuleState(uint8_t house, uint8_t unit)
 {
   #if X10_PERSIST_STATE == 1
-  uint8_t state = eeprom_read_byte((unsigned char *)index) + 1;
+  uint8_t state = eepromRead(house, unit + 1);
   #else
-  uint8_t state = moduleState[index];
+  uint8_t state = moduleState[house << 4 | unit];
   #endif
   // Bit 1 and 2 in state byte has the state, last 6 bits is brightness
   // 00 = Not seen, Not known, Not On
@@ -639,12 +696,88 @@ void X10ex::updateModuleState(uint8_t index)
     }
   }
   #if X10_PERSIST_STATE == 1
-  eeprom_write_byte((unsigned char *)index, state - 1);
+  eepromWrite(house, unit + 1, state);
   #else
-  moduleState[index] = state;
+  moduleState[house << 4 | unit] = state;
   #endif
 }
 #endif
+
+void X10ex::wipeModuleData(uint8_t house, uint8_t unit, bool info)
+{
+  house = parseHouseCode(house);
+  unit--;
+  uint16_t ix = 0;
+  uint8_t endIx = 255;
+  if(house <= 0xF)
+  {
+    ix = house << 4;
+    if(unit <= 0xF)
+    {
+      ix += unit;
+      endIx = ix;
+    }
+    else
+    {
+      endIx = ix + 0xF;
+    }
+  }
+  while(ix <= endIx)
+  {
+    if(info)
+    {
+#if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
+      uint8_t infoData = eepromRead(ix + 256);
+      if(infoData & B100000)
+      {
+        eepromWrite((infoData & B11111) * X10_INFO_NAME_LEN + 512, '\0');
+      }
+#endif
+      eepromWrite(ix + 256, 0);
+    }
+    else
+    {
+#if X10_PERSIST_STATE == 1
+      eepromWrite(ix, 0);
+#else
+      moduleState[ix] = 0;
+#endif
+    }
+    ix++;
+  }
+}
+
+uint8_t X10ex::eepromRead(uint16_t address)
+{
+  // Return byte read from EEPROM, add 1 because of initial EEPROM value 255
+  return eeprom_read_byte((unsigned char *)address) + 1;
+}
+
+uint8_t X10ex::eepromRead(uint8_t house, uint8_t unit, uint16_t offset)
+{
+  house = parseHouseCode(house);
+  unit--;
+  // If house or unit code is out of range: return 0
+  if(house > 0xF || unit > 0xF) return 0;
+  return eepromRead((house << 4 | unit) + offset);
+}
+
+uint8_t X10ex::eepromWrite(uint16_t address, uint8_t data)
+{
+  // Subtract 1 because of initial EEPROM value 255
+  eeprom_write_byte((unsigned char *)address, data - 1);
+}
+
+uint8_t X10ex::eepromWrite(uint8_t house, uint8_t unit, uint8_t data, uint16_t offset)
+{
+  house = parseHouseCode(house);
+  unit--;
+  // If house and unit code is within valid range
+  if(house <= 0xF && unit <= 0xF)
+  {
+    eepromWrite((house << 4 | unit) + offset, data);
+  }
+}
 
 void X10ex::clearReceiveBuffer()
 {
@@ -654,7 +787,7 @@ void X10ex::clearReceiveBuffer()
 
 uint8_t X10ex::parseHouseCode(uint8_t house)
 {
-  return house - (house >= 0x61 ? 0x61 : 0x41);
+  return house - (house < 0xF ? 0 : house >= 0x61 ? 0x61 : 0x41);
 }
 
 int8_t X10ex::findCodeIndex(const uint8_t codeList[16], uint8_t code)
