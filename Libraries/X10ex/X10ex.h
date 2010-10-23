@@ -75,10 +75,10 @@
 #define CMD_STATUS_REQUEST    B1111
 
 #define EXC_PRE_SET_DIM       B00110001
-#define EXC_DIM_TIME_4        B00 // 0
-#define EXC_DIM_TIME_30       B01 // 1
-#define EXC_DIM_TIME_60       B10 // 2
-#define EXC_DIM_TIME_300      B11 // 3
+#define EXC_DIM_TIME_4        0
+#define EXC_DIM_TIME_30       1
+#define EXC_DIM_TIME_60       2
+#define EXC_DIM_TIME_300      3
 
 #define MODULE_TYPE_UNKNOWN   B00 // 0
 #define MODULE_TYPE_APPLIANCE B01 // 1
