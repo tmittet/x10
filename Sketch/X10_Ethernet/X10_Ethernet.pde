@@ -255,14 +255,17 @@ void processEthernetRequest()
         {
           parsingText = !parsingText;
         }
+        // Space is only stored when parsing HTTP method or quoted text
         else if(isgraph(c) || ((readState == HTTP_STATE_PARSE_METHOD || parsingText) && c == ' '))
         {
+          // When parsing quoted text or Base64 string, characters are not converted to upper case
           buffer[HTTP_BUFFER_MAX - bufferMax] =
             parsingText || readState == HTTP_STATE_AUTH_START ?
             c : toupper(c);
           buffer[HTTP_BUFFER_MAX - --bufferMax] = '\0';
         }
-        if(!bufferMax || !client.available() || c == '\n')
+        // We have reached end of line, buffer or transmission
+        if(c == '\n' || !bufferMax || !client.available())
         {
           byte lineLen = strlen(buffer);
           // Parse request method and path
@@ -276,7 +279,6 @@ void processEthernetRequest()
             // If method is POST
             else if(!strncmp(buffer, "POST", 4))
             {
-              // Set state 2 (wait for blank line seperating body from head)
               method = HTTP_METHOD_POST;
             }
             // If method is DELETE
@@ -284,7 +286,7 @@ void processEthernetRequest()
             {
               method = HTTP_METHOD_DELETE;
             }
-            // Parse path
+            // Parse path (house and unit)
             byte ix = stringIndexOf(buffer, '/', 0, 0, 0);
             if(buffer[ix] == '/')
             {
@@ -292,57 +294,68 @@ void processEthernetRequest()
               if(data >= 'A' && data <= 'P')
               {
                 house = data;
-                if(buffer[ix + 2] == '/') unit = stringToDecimal(buffer, ix + 3, ix + 5);
+                if(buffer[ix + 2] == '/')
+                {
+                  unit = stringToDecimal(buffer, ix + 3, ix + 5);
+                }
               }
             }
             readState = HTTP_STATE_AUTH_START;
           }
-          // Validate user name and password
+          // Validate user credentials (stored in Base64 string)
           else if(readState == HTTP_STATE_AUTH_START)
           {
             if(!lineLen) break;
             byte base64Len = strlen(HTTP_AUTH_BASE64);
+            // Base64 string should be found at position 19 excluding whitespace
             if(!base64Len || (base64Len == lineLen - 19 && !strncmp(buffer + 19, HTTP_AUTH_BASE64, base64Len)))
             {
               readState = HTTP_STATE_AUTH_DONE;
             }
           }
-          // Parse body and execute commands after blank line seperating body from head
+          // Parse body and execute commands, after blank line seperating body from head has been received
           if(readState == HTTP_STATE_AUTH_DONE && method == HTTP_METHOD_POST && !lastLineLen)
           {
             char cmdHouse = house;
             byte cmdUnit = unit;
             byte bufferLen = stringIndexOf(buffer, '\0', 0, HTTP_BUFFER_MAX, HTTP_BUFFER_MAX);
-            byte ix = 0;
-            while(ix < bufferLen)
+            byte endIx = 0;
+            while(endIx < bufferLen)
             {
-              byte startIx = ix > 0 ? ix + 1 : 0;
-              ix = stringIndexOf(buffer, '&', startIx, bufferLen, bufferLen);
-              byte eq = stringIndexOf(buffer, '=', startIx, bufferLen, 0);
+              byte startIx = endIx > 0 ? endIx + 1 : 0;
+              // Update command end index
+              endIx = stringIndexOf(buffer, '&', startIx, bufferLen, bufferLen);
+              // Get index of equal sign
+              byte eq = stringIndexOf(buffer, '=', startIx, endIx, 0);
               if(eq > startIx)
               {
+                // If user specified house code, use it in stead of the one parsed from path
                 if(!strncmp(buffer + startIx, "HOUSE", eq - startIx))
                 {
                   cmdHouse = buffer[eq + 1];
                 }
+                // If user specified unit code, use it in stead of the one parsed from path
                 else if(!strncmp(buffer + startIx, "UNIT", eq - startIx))
                 {
-                  cmdUnit = stringToDecimal(buffer, eq + 1, ix);
+                  cmdUnit = stringToDecimal(buffer, eq + 1, endIx);
                 }
+                // Parse set module type command (0 = Unknown, 1 = Appliance, 2 = Dimmer, 3 = Sensor)
                 else if(!strncmp(buffer + startIx, "TYPE", eq - startIx))
                 {
-                  x10ex.setModuleType(cmdHouse, cmdUnit, stringToDecimal(buffer, eq + 1, ix));
+                  x10ex.setModuleType(cmdHouse, cmdUnit, stringToDecimal(buffer, eq + 1, endIx));
                 }
+                // Parse set module name command (max. 16 characters)
                 else if(!strncmp(buffer + startIx, "NAME", eq - startIx))
                 {
-                  x10ex.setModuleName(cmdHouse, cmdUnit, buffer + eq + 1, ix - eq - 1);
+                  x10ex.setModuleName(cmdHouse, cmdUnit, buffer + eq + 1, endIx - eq - 1);
                 }
+                // Parse on command (true, false, 1 and 0 are valid input)
                 else if(!strncmp(buffer + startIx, "ON", eq - startIx))
                 {
                   byte cmd;
                   cmd =
-                    !strncmp(buffer + eq + 1, "TRUE", ix - eq - 1 > 4 ? ix - eq - 1 : 4) ||
-                    !strncmp(buffer + eq + 1, "1", ix - eq - 1) ?
+                    !strncmp(buffer + eq + 1, "TRUE", endIx - eq - 1 > 4 ? endIx - eq - 1 : 4) ||
+                    !strncmp(buffer + eq + 1, "1", endIx - eq - 1) ?
                     CMD_ON : CMD_OFF;
                   // Check if command is handled by scenario; if not continue
                   if(!handleUnitScenario(cmdHouse, cmdUnit, cmd, false, true))
@@ -353,17 +366,19 @@ void processEthernetRequest()
                   delay(POWER_LINE_MSG_TIME);
                   break;
                 }
+                // Parse brightness command (0-100 percent)
                 else if(!strncmp(buffer + startIx, "BRIGHTNESS", eq - startIx))
                 {
-                  byte brightness = x10ex.percentToX10Brightness(stringToDecimal(buffer, eq + 1, ix));
+                  byte brightness = x10ex.percentToX10Brightness(stringToDecimal(buffer, eq + 1, endIx));
                   x10exBufferError = x10ex.sendExt(cmdHouse, cmdUnit, CMD_EXTENDED_CODE, brightness, EXC_PRE_SET_DIM, 2);
                   printX10Message(ETHERNET_REST_MSG, cmdHouse, cmdUnit, CMD_EXTENDED_CODE, brightness, EXC_PRE_SET_DIM, 0);
                   delay(POWER_LINE_MSG_TIME);
                   break;
                 }
+                // Parse 3 byte command (Up to 16, 3 or 9 byte commands, are supported)
                 else if(!strncmp(buffer + startIx, "CMD", eq - startIx))
                 {
-                  while(ix - eq - 1 >= 3 && !x10exBufferError)
+                  while(endIx - eq - 1 >= 3 && !x10exBufferError)
                   {
                     x10exBufferError = process3BMessage(ETHERNET_REST_MSG, buffer[eq + 1], buffer[eq + 2], buffer[eq + 3]);
                     eq += 3;
@@ -374,7 +389,7 @@ void processEthernetRequest()
             }
             readState = HTTP_STATE_BODY_DONE;
           }
-          // Execute delete
+          // Execute delete module state and info
           else if(readState == HTTP_STATE_AUTH_DONE && method == HTTP_METHOD_DELETE)
           {
             x10ex.wipeModuleState(house, unit);
@@ -389,15 +404,18 @@ void processEthernetRequest()
         if((readState == HTTP_STATE_AUTH_DONE && method != HTTP_METHOD_POST) || readState == HTTP_STATE_BODY_DONE) break;
       }
       client.print("HTTP/1.1");
+      // State AUTH_START means user has not provided valid credentials yet
       if(readState <= HTTP_STATE_AUTH_START)
       {
         client.println(" 401 Authorization Required\nWWW-Authenticate: Basic realm=\"Secure Area\"\nContent-Type: text/html\n");
         client.print("<html><body>401 Unauthorized</body></html>");
       }
+      // User is trying to execute unsupported HTTP request method
       else if(method == HTTP_METHOD_UNKNOWN)
       {
         client.println(" 501 Not Implemented\nContent-Type: text/json");
       }
+      // Response is always sent after successful GET, POST or DELETE request
       else
       {
         // Return JSON response
