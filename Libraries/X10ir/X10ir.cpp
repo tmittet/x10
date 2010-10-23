@@ -36,10 +36,7 @@ X10ir *x10irInstance = NULL;
 
 void x10irReceive_wrapper()
 {
-  if(x10irInstance)
-  {
-    x10irInstance->receive();
-  }
+  if(x10irInstance) x10irInstance->receive();
 }
 
 X10ir::X10ir(uint8_t receiveInt, uint8_t receivePin, char defaultHouse, irReceiveCallback_t irReceiveCallback)
@@ -184,10 +181,7 @@ bool X10ir::validateData(uint16_t data, uint8_t bits)
 {
   for(uint8_t i = 0; i < bits; i++)
   {
-    if(data >> 15 - i & B1 == data >> 15 - bits - i & B1)
-    {
-      return 0;
-    }
+    if(data >> 15 - i & B1 == data >> 15 - bits - i & B1) return 0;
   }
   return 1;
 }

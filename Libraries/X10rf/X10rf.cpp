@@ -31,10 +31,7 @@ X10rf *x10rfInstance = NULL;
 
 void x10rfReceive_wrapper()
 {
-  if(x10rfInstance)
-  {
-    x10rfInstance->receive();
-  }
+  if(x10rfInstance) x10rfInstance->receive();
 }
 
 X10rf::X10rf(uint8_t receiveInt, uint8_t receivePin, rfReceiveCallback_t rfReceiveCallback)
@@ -79,10 +76,7 @@ void X10rf::receive()
     {
       receiveEnded = 0;
       receiveBuffer = 0;
-      if(lengthUs >= X10_RF_SB_MIN)
-      {
-        receivedCount = 1;
-      }
+      if(lengthUs >= X10_RF_SB_MIN) receivedCount = 1;
     }
   }
   else if(receivedCount)
