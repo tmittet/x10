@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 PLC, RF, IR library test sketch, v1.2                            */
+/* X10 PLC, RF, IR library with JSON support test sketch, v1.0.         */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -20,18 +20,40 @@
 #include <X10ex.h>
 #include <X10rf.h>
 #include <X10ir.h>
+#include <SPI.h>
+#include <Ethernet.h>
 
 #define DEBUG 0
 
 #define POWER_LINE_MSG "PL:"
 #define POWER_LINE_BUFFER_ERROR "PL:_ExBuffer"
+#define POWER_LINE_MSG_TIME 1400
 #define RADIO_FREQ_MSG "RF:"
 #define INFRARED_MSG "IR:"
 #define SERIAL_DATA_MSG "SD:"
 #define SERIAL_DATA_THRESHOLD 1000
 #define SERIAL_DATA_TIMEOUT "SD:_ExTimOut"
+#define ETHERNET_REST_MSG "ER:"
 #define MODULE_STATE_MSG "MS:"
 #define MSG_DATA_ERROR "_ExSyntax"
+
+// Default username and password are "test" and "test". NOTE: With basic authentication user name and password is sent in clear text
+// To generate Base64 string first concatenate the user name and password using colon as a serperator. Ex: testusername:testpassword
+// To encode the username:password string use an online encoder like: "http://www.opinionatedgeek.com/dotnet/tools/base64encode/"
+// NOTE: If you would like to disable Basic Authentication, just set the HTTP_AUTH_BASE64 define to an empty string ""
+#define HTTP_AUTH_BASE64 "dGVzdDp0ZXN0"
+
+#define HTTP_BUFFER_MAX 64
+
+#define HTTP_STATE_PARSE_METHOD  0
+#define HTTP_STATE_AUTH_START    1
+#define HTTP_STATE_AUTH_DONE     2
+#define HTTP_STATE_BODY_DONE     3
+
+#define HTTP_METHOD_UNKNOWN  0
+#define HTTP_METHOD_GET      1
+#define HTTP_METHOD_POST     2
+#define HTTP_METHOD_DELETE   3
 
 // Fields used for serial and byte message reception
 unsigned long sdReceived;
@@ -40,6 +62,11 @@ byte bmUnit;
 byte bmCommand;
 byte bmExtCommand;
 
+// Enter a MAC address and IP address for your controller below.
+// The IP address will be dependent on your local network:
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+byte ip[] = { 10, 0, 0, 3 };
+
 // zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true, phases = 1, sineWaveHz = 50
 X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage, 1, 50);
 // receiveInt = 0 (external interrupt), receivePin = 2
@@ -47,18 +74,24 @@ X10rf x10rf = X10rf(0, 2, processRfCommand);
 // receiveInt = 1 (external interrupt), receivePin = 3, defaultHouse = 'A'
 X10ir x10ir = X10ir(1, 3, 'A', processIrCommand);
 
+// Initialize the Ethernet server library, start listening on port 80 (http)
+Server server(80);
+
 void setup()
 {
   Serial.begin(115200);
   x10ex.begin();
   x10rf.begin();
   x10ir.begin();
+  Ethernet.begin(mac, ip);
+  server.begin();
   Serial.println("X10");
 }
 
 void loop()
 {
   processSdMessage();
+  if(!Serial.available()) processEthernetRequest();
 }
 
 // Process messages received from X10 modules over the power line
@@ -194,6 +227,210 @@ void processSdMessage()
       sdReceived = 0;
       Serial.println(SERIAL_DATA_TIMEOUT);
       Serial.flush();
+    }
+  }
+}
+
+// Process request received from Arduino Ethernet Shield
+void processEthernetRequest()
+{
+  Client client = server.available();
+  if(client)
+  {
+    while(client.connected())
+    {
+      byte readState = HTTP_STATE_PARSE_METHOD;
+      bool parsingText = false;
+      byte bufferMax = HTTP_BUFFER_MAX;
+      char buffer[HTTP_BUFFER_MAX + 1];
+      byte lastLineLen;
+      byte method;
+      char house = '*';
+      byte unit = 0;
+      bool x10exBufferError = 0;
+      while(client.available())
+      {
+        char c = client.read();
+        if(c == '"')
+        {
+          parsingText = !parsingText;
+        }
+        else if(isgraph(c) || ((readState == HTTP_STATE_PARSE_METHOD || parsingText) && c == ' '))
+        {
+          buffer[HTTP_BUFFER_MAX - bufferMax] =
+            parsingText || readState == HTTP_STATE_AUTH_START ?
+            c : toupper(c);
+          buffer[HTTP_BUFFER_MAX - --bufferMax] = '\0';
+        }
+        if(!bufferMax || !client.available() || c == '\n')
+        {
+          byte lineLen = strlen(buffer);
+          // Parse request method and path
+          if(readState == HTTP_STATE_PARSE_METHOD)
+          {
+            // If method is GET
+            if(!strncmp(buffer, "GET", 3))
+            {
+              method = HTTP_METHOD_GET;
+            }
+            // If method is POST
+            else if(!strncmp(buffer, "POST", 4))
+            {
+              // Set state 2 (wait for blank line seperating body from head)
+              method = HTTP_METHOD_POST;
+            }
+            // If method is DELETE
+            else if(!strncmp(buffer, "DELETE", 6))
+            {
+              method = HTTP_METHOD_DELETE;
+            }
+            // Parse path
+            byte ix = stringIndexOf(buffer, '/', 0, 0, 0);
+            if(buffer[ix] == '/')
+            {
+              char data = buffer[ix + 1];
+              if(data >= 'A' && data <= 'P')
+              {
+                house = data;
+                if(buffer[ix + 2] == '/') unit = stringToDecimal(buffer, ix + 3, ix + 5);
+              }
+            }
+            readState = HTTP_STATE_AUTH_START;
+          }
+          // Validate user name and password
+          else if(readState == HTTP_STATE_AUTH_START)
+          {
+            if(!lineLen) break;
+            byte base64Len = strlen(HTTP_AUTH_BASE64);
+            if(!base64Len || (base64Len == lineLen - 19 && !strncmp(buffer + 19, HTTP_AUTH_BASE64, base64Len)))
+            {
+              readState = HTTP_STATE_AUTH_DONE;
+            }
+          }
+          // Parse body and execute commands after blank line seperating body from head
+          if(readState == HTTP_STATE_AUTH_DONE && method == HTTP_METHOD_POST && !lastLineLen)
+          {
+            char cmdHouse = house;
+            byte cmdUnit = unit;
+            byte bufferLen = stringIndexOf(buffer, '\0', 0, HTTP_BUFFER_MAX, HTTP_BUFFER_MAX);
+            byte ix = 0;
+            while(ix < bufferLen)
+            {
+              byte startIx = ix > 0 ? ix + 1 : 0;
+              ix = stringIndexOf(buffer, '&', startIx, bufferLen, bufferLen);
+              byte eq = stringIndexOf(buffer, '=', startIx, bufferLen, 0);
+              if(eq > startIx)
+              {
+                if(!strncmp(buffer + startIx, "HOUSE", eq - startIx))
+                {
+                  cmdHouse = buffer[eq + 1];
+                }
+                else if(!strncmp(buffer + startIx, "UNIT", eq - startIx))
+                {
+                  cmdUnit = stringToDecimal(buffer, eq + 1, ix);
+                }
+                else if(!strncmp(buffer + startIx, "TYPE", eq - startIx))
+                {
+                  x10ex.setModuleType(cmdHouse, cmdUnit, stringToDecimal(buffer, eq + 1, ix));
+                }
+                else if(!strncmp(buffer + startIx, "NAME", eq - startIx))
+                {
+                  x10ex.setModuleName(cmdHouse, cmdUnit, buffer + eq + 1, ix - eq - 1);
+                }
+                else if(!strncmp(buffer + startIx, "ON", eq - startIx))
+                {
+                  byte cmd;
+                  cmd =
+                    !strncmp(buffer + eq + 1, "TRUE", ix - eq - 1 > 4 ? ix - eq - 1 : 4) ||
+                    !strncmp(buffer + eq + 1, "1", ix - eq - 1) ?
+                    CMD_ON : CMD_OFF;
+                  // Check if command is handled by scenario; if not continue
+                  if(!handleUnitScenario(cmdHouse, cmdUnit, cmd, false, true))
+                  {
+                    x10exBufferError = x10ex.sendCmd(cmdHouse, cmdUnit, cmd, 2);
+                  }
+                  printX10Message(ETHERNET_REST_MSG, cmdHouse, cmdUnit, cmd, 0, 0, 0);
+                  delay(POWER_LINE_MSG_TIME);
+                  break;
+                }
+                else if(!strncmp(buffer + startIx, "BRIGHTNESS", eq - startIx))
+                {
+                  byte brightness = x10ex.percentToX10Brightness(stringToDecimal(buffer, eq + 1, ix));
+                  x10exBufferError = x10ex.sendExt(cmdHouse, cmdUnit, CMD_EXTENDED_CODE, brightness, EXC_PRE_SET_DIM, 2);
+                  printX10Message(ETHERNET_REST_MSG, cmdHouse, cmdUnit, CMD_EXTENDED_CODE, brightness, EXC_PRE_SET_DIM, 0);
+                  delay(POWER_LINE_MSG_TIME);
+                  break;
+                }
+                else if(!strncmp(buffer + startIx, "CMD", eq - startIx))
+                {
+                  while(ix - eq - 1 >= 3 && !x10exBufferError)
+                  {
+                    x10exBufferError = process3BMessage(ETHERNET_REST_MSG, buffer[eq + 1], buffer[eq + 2], buffer[eq + 3]);
+                    eq += 3;
+                  }
+                  break;
+                }
+              }
+            }
+            readState = HTTP_STATE_BODY_DONE;
+          }
+          // Execute delete
+          else if(readState == HTTP_STATE_AUTH_DONE && method == HTTP_METHOD_DELETE)
+          {
+            x10ex.wipeModuleState(house, unit);
+            x10ex.wipeModuleInfo(house, unit);
+          }
+          parsingText = false;
+          bufferMax = HTTP_BUFFER_MAX;
+          buffer[0] = '\0';
+          lastLineLen = lineLen;
+        }
+        // Check if we are done receiving
+        if((readState == HTTP_STATE_AUTH_DONE && method != HTTP_METHOD_POST) || readState == HTTP_STATE_BODY_DONE) break;
+      }
+      client.print("HTTP/1.1");
+      if(readState <= HTTP_STATE_AUTH_START)
+      {
+        client.println(" 401 Authorization Required\nWWW-Authenticate: Basic realm=\"Secure Area\"\nContent-Type: text/html\n");
+        client.print("<html><body>401 Unauthorized</body></html>");
+      }
+      else if(method == HTTP_METHOD_UNKNOWN)
+      {
+        client.println(" 501 Not Implemented\nContent-Type: text/json");
+      }
+      else
+      {
+        // Return JSON response
+        client.println(" 200 OK\nContent-Type: text/json\n");
+        if(house != '*' && unit > 0 && unit <= 16)
+        {
+          erPrintModuleState(client, house, unit, true, true);
+        }
+        else
+        {
+          client.println("{\n\"module\":\n[");
+          bool isFirst = true;
+          // All units using specified house code
+          if(house != '*')
+          {
+            for(byte i = 1; i <= 16; i++)
+            {
+              if(erPrintModuleState(client, house, i, isFirst, false)) isFirst = false;
+            }
+          }
+          // All units
+          else
+          {
+            for(short i = 0; i < 256; i++)
+            {
+              if(erPrintModuleState(client, (i >> 4) + 0x41, (i & 0xF) + 1, isFirst, false)) isFirst = false;
+            }
+          }
+          client.print("\n]\n}");
+        }
+      }
+      delay(1);
+      client.stop();
     }
   }
 }
@@ -366,6 +603,50 @@ void sdPrintModuleState(char house, byte unit)
   }
 }
 
+bool erPrintModuleState(Client client, char house, byte unit, bool isFirst, bool printUnseenModules)
+{
+  X10state state = x10ex.getModuleState(house, unit);
+  X10info info = x10ex.getModuleInfo(house, unit);
+  if(state.isSeen || printUnseenModules)
+  {
+    if(!isFirst) client.println(",");
+    client.print("{\n\"house\": \"");
+    client.print(house);
+    client.println("\",");
+    client.print("\"unit\": ");
+    client.print(unit, DEC);
+    if(info.type)
+    {
+      client.print(",\n\"type\": ");
+      client.print(info.type, DEC);
+    }
+    if(strlen(info.name))
+    {
+      client.print(",\n\"name\": \"");
+      client.print(info.name);
+      client.print("\"");
+    }
+    client.print(",\n\"url\": \"/");
+    client.print(house);
+    client.print("/");
+    client.print(unit, DEC);
+    client.print("/\"");
+    if(state.isKnown)
+    {
+      client.print(",\n\"on\": ");
+      client.print(state.isOn ? "true" : "false");
+      if(state.data)
+      {
+        client.print(",\n\"brightness\": ");
+        client.print(x10ex.x10BrightnessToPercent(state.data), DEC);
+      }
+    }
+    client.print("\n}");
+    return true;
+  }
+  return false;
+}
+
 void printX10ByteAsHex(byte data)
 {
   Serial.print("x");
@@ -381,6 +662,33 @@ byte charHexToDecimal(byte input)
   else if(input >= 0x41 && input <= 0x46) input -= 0x37;
   // Return converted byte
   return input;
+}
+
+byte stringToDecimal(const char input[], byte startPos, byte endPos)
+{
+  byte decimal = 0;
+  byte multiplier = 1;
+  for(byte i = endPos + 1; i > startPos; i--)
+  {
+    if(input[i - 1] >= 0x30 && input[i - 1] <= 0x39)
+    {
+      decimal += (input[i - 1] - 0x30) * multiplier;
+      multiplier *= 10;
+    }
+    else if(multiplier > 1)
+    {
+      break;
+    }
+  }
+  return decimal;
+}
+
+short stringIndexOf(const char string[], char find, byte startPos, byte endPos, short notFoundValue)
+{
+  char *ixStr = strchr(string + startPos, find);
+  return
+    ixStr - string < 0 || (endPos > 0 && ixStr - string > endPos) ?
+    notFoundValue : ixStr - string;
 }
 
 // Handles scenario execute commands received as serial data message
