@@ -35,10 +35,12 @@
 // Set the min delay, in ms, between buffering of two identical messages
 // This delay does not affect message repeats (when button is held)
 #define X10_REBUFFER_DELAY  500
-// When set to 1: module state data is stored in EEPROM. When set to 2:
-// data is stored in volatile memory and cleared on reboot. When set to 0:
-// state isn't stored at all and compiler ignores state code
-#define X10_PERSIST_STATE     1
+// Chooses how to save module state and info (types and names).
+// Set to 0: Neither state nor info is stored and state code is ignored
+// Set to 1: Module state data and module info is stored in EEPROM.
+// Set to 2: State data is stored in volatile memory and cleared on
+// reboot. Module types and names are not stored when state is set to 2.
+#define X10_PERSIST_MOD_DATA  1
 // Length of module names stored in EEPROM, do not change if you don't
 // know what you are doing. 4 and 8 should be valid, but this isn't tested.
 #define X10_INFO_NAME_LEN    16
@@ -131,12 +133,14 @@ class X10ex
     bool sendExt(uint8_t house, uint8_t unit, uint8_t command, uint8_t extData, uint8_t extCommand, uint8_t repetitions);
     X10state getModuleState(uint8_t house, uint8_t unit);
     void wipeModuleState(uint8_t house = '*', uint8_t unit = 0);
+#if X10_PERSIST_MOD_DATA == 1
     X10info getModuleInfo(uint8_t house, uint8_t unit);
     void setModuleType(uint8_t house, uint8_t unit, uint8_t type);
-#if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
+  #if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
     bool setModuleName(uint8_t house, uint8_t unit, char name[X10_INFO_NAME_LEN], uint8_t length = X10_INFO_NAME_LEN);
-#endif
+  #endif
     void wipeModuleInfo(uint8_t house = '*', uint8_t unit = 0);
+#endif
     uint8_t percentToX10Brightness(uint8_t brightness, uint8_t time = EXC_DIM_TIME_4);
     uint8_t x10BrightnessToPercent(uint8_t brightness);
     void zeroCross();
@@ -163,7 +167,7 @@ class X10ex
     uint8_t receivedCount, receivedBits, receiveBuffer;
     uint8_t rxHouse, rxUnit, rxExtUnit, rxCommand, rxData, rxExtCommand;
     // State stored in byte (8=On/Off, 7=State Known/Unknown, 6-1 data)
-#if X10_PERSIST_STATE >= 2
+#if X10_PERSIST_MOD_DATA >= 2
     uint8_t moduleState[256];
 #endif
     // Private methods
@@ -171,14 +175,16 @@ class X10ex
     void receiveMessage();
     void receiveStandardMessage();
     void receiveExtendedMessage();
-#if X10_PERSIST_STATE
-    void updateModuleState(uint8_t house, uint8_t unit);
+#if X10_PERSIST_MOD_DATA
+    void updateModuleState(uint8_t house, uint8_t unit, uint8_t command);
 #endif
     void wipeModuleData(uint8_t house, uint8_t unit, bool info);
+#if X10_PERSIST_MOD_DATA == 1
     uint8_t eepromRead(uint16_t address);
     uint8_t eepromRead(uint8_t house, uint8_t unit, uint16_t offset = 0);
     uint8_t eepromWrite(uint16_t address, uint8_t data);
     uint8_t eepromWrite(uint8_t house, uint8_t unit, uint8_t data, uint16_t offset = 0);
+#endif
     void clearReceiveBuffer();
     uint8_t parseHouseCode(uint8_t house);
     int8_t findCodeIndex(const uint8_t codeList[16], uint8_t code);

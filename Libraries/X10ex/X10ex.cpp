@@ -256,9 +256,9 @@ X10state X10ex::getModuleState(uint8_t house, uint8_t unit)
   bool isKnown = 0;
   bool isOn = 0;
   uint8_t data = 0;
-#if X10_PERSIST_STATE
+#if X10_PERSIST_MOD_DATA
   // Validate input
-  #if X10_PERSIST_STATE == 1
+  #if X10_PERSIST_MOD_DATA == 1
   uint8_t state = eepromRead(house, unit);
   #else
   house = parseHouseCode(house);
@@ -287,18 +287,19 @@ X10state X10ex::getModuleState(uint8_t house, uint8_t unit)
 // - If unit is outside range 1-16, state of all modules in house is wiped
 void X10ex::wipeModuleState(uint8_t house, uint8_t unit)
 {
-#if X10_PERSIST_STATE
+#if X10_PERSIST_MOD_DATA
   wipeModuleData(house, unit, 0);
 #endif
 }
 
+#if X10_PERSIST_MOD_DATA == 1
 X10info X10ex::getModuleInfo(uint8_t house, uint8_t unit)
 {
   uint8_t infoData = eepromRead(house, unit, 256);
   X10info info;
   info.type = infoData >> 6;
   uint8_t ix = 0;
-#if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
+  #if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
   if(infoData & B100000)
   {
     uint16_t nameAddr = (infoData & B11111) * X10_INFO_NAME_LEN + 512;
@@ -309,17 +310,23 @@ X10info X10ex::getModuleInfo(uint8_t house, uint8_t unit)
       ix++;
     }
   }
-#endif
+  #endif
   info.name[ix] = '\0';
   return info;
 }
 
 void X10ex::setModuleType(uint8_t house, uint8_t unit, uint8_t type)
 {
-  if(type <= B11) eepromWrite(house, unit, (eepromRead(house, unit, 256) | B11000000) & (type << 6 | B111111), 256);
+  if(type <= B11)
+  {
+    // Make sure module is marked as seen
+    updateModuleState(house, unit, DATA_UNKNOWN);
+    // Update module type
+    eepromWrite(house, unit, (eepromRead(house, unit, 256) | B11000000) & (type << 6 | B111111), 256);
+  }
 }
 
-#if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
+  #if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
 bool X10ex::setModuleName(uint8_t house, uint8_t unit, char name[X10_INFO_NAME_LEN], uint8_t length)
 {
   uint16_t nameAddr;
@@ -339,6 +346,8 @@ bool X10ex::setModuleName(uint8_t house, uint8_t unit, char name[X10_INFO_NAME_L
     }
     // If we have run out of space: abort by returning error code
     if(nameAddr > 1024 - X10_INFO_NAME_LEN) return 1;
+    // Make sure module is marked as seen
+    updateModuleState(house, unit, DATA_UNKNOWN);
     // Update module pointer to name address
     eepromWrite(
       house, unit,
@@ -361,7 +370,7 @@ bool X10ex::setModuleName(uint8_t house, uint8_t unit, char name[X10_INFO_NAME_L
   }
   return 0;
 }
-#endif
+  #endif
 
 // WARNING:
 // - If house is outside range A-P, all module info is wiped
@@ -370,6 +379,7 @@ void X10ex::wipeModuleInfo(uint8_t house, uint8_t unit)
 {
   wipeModuleData(house, unit, 1);
 }
+#endif
 
 uint8_t X10ex::percentToX10Brightness(uint8_t brightness, uint8_t time)
 {
@@ -554,13 +564,13 @@ void X10ex::receiveMessage()
   {
     if(rxCommand != DATA_UNKNOWN)
     {
-      uint8_t houseIx = findCodeIndex(HOUSE_CODE, rxHouse);
-      uint8_t unitIx = findCodeIndex(UNIT_CODE, rxExtUnit != DATA_UNKNOWN ? rxExtUnit : rxUnit);
-#if X10_PERSIST_STATE
-      if(unitIx != 0xFF) updateModuleState(houseIx, unitIx);
+      uint8_t house = findCodeIndex(HOUSE_CODE, rxHouse) + 65;
+      uint8_t unit = findCodeIndex(UNIT_CODE, rxExtUnit != DATA_UNKNOWN ? rxExtUnit : rxUnit) + 1;
+#if X10_PERSIST_MOD_DATA
+      if(unit) updateModuleState(house, unit, rxCommand);
 #endif
       // Trigger receive callback
-      plcReceiveCallback(houseIx + 65, unitIx + 1, rxCommand, rxData, rxExtCommand, receivedBits);
+      plcReceiveCallback(house, unit, rxCommand, rxData, rxExtCommand, receivedBits);
     }
     rxCommand = DATA_UNKNOWN;
     rxData = 0;
@@ -625,13 +635,13 @@ void X10ex::receiveExtendedMessage()
   }
 }
 
-#if X10_PERSIST_STATE
-void X10ex::updateModuleState(uint8_t house, uint8_t unit)
+#if X10_PERSIST_MOD_DATA
+void X10ex::updateModuleState(uint8_t house, uint8_t unit, uint8_t command)
 {
-  #if X10_PERSIST_STATE == 1
-  uint8_t state = eepromRead(house, unit + 1);
+  #if X10_PERSIST_MOD_DATA == 1
+  uint8_t state = eepromRead(house, unit);
   #else
-  uint8_t state = moduleState[house << 4 | unit];
+  uint8_t state = moduleState[parseHouseCode(house) << 4 | (unit - 1)];
   #endif
   // Bit 1 and 2 in state byte has the state, last 6 bits is brightness
   // 00 = Not seen, Not known, Not On
@@ -642,7 +652,7 @@ void X10ex::updateModuleState(uint8_t house, uint8_t unit)
   // If not seen, set seen
   if(!(state & B11000000)) state |= B1000000;
   // Dim: estimate brightness
-  if(rxCommand == CMD_DIM)
+  if(command == CMD_DIM)
   {
     // Module is off: set full brightness
     if(state >> 6 == B1)
@@ -656,7 +666,7 @@ void X10ex::updateModuleState(uint8_t house, uint8_t unit)
     }
   }
   // Bright: estimate brightness
-  else if(rxCommand == CMD_BRIGHT)
+  else if(command == CMD_BRIGHT)
   {
     // Module is off: set low brightness
     if(state >> 6 == B1)
@@ -670,19 +680,19 @@ void X10ex::updateModuleState(uint8_t house, uint8_t unit)
     }
   }
   // Off: set state and get brightness from buffer
-  if(rxCommand == CMD_OFF || rxCommand == CMD_STATUS_OFF)
+  if(command == CMD_OFF || command == CMD_STATUS_OFF)
   {
     state = brightness | B10000000;
     rxData = brightness;
   }
   // On: set state and get brightness from buffer
-  else if(rxCommand == CMD_DIM || rxCommand == CMD_BRIGHT || rxCommand == CMD_ON || rxCommand == CMD_STATUS_ON)
+  else if(command == CMD_DIM || command == CMD_BRIGHT || command == CMD_ON || command == CMD_STATUS_ON)
   {
     state = brightness | B11000000;
     rxData = brightness;
   }
   // X10 standard or extended code message pre set dim commands
-  else if((rxCommand & B1110) == CMD_PRE_SET_DIM_0 || (rxCommand == CMD_EXTENDED_CODE && rxExtCommand == EXC_PRE_SET_DIM))
+  else if((command & B1110) == CMD_PRE_SET_DIM_0 || (command == CMD_EXTENDED_CODE && rxExtCommand == EXC_PRE_SET_DIM))
   {
     // Brightness > 0: update state and set brightness
     if(rxData > 0)
@@ -695,16 +705,17 @@ void X10ex::updateModuleState(uint8_t house, uint8_t unit)
       state = brightness | B10000000;
     }
   }
-  #if X10_PERSIST_STATE == 1
-  eepromWrite(house, unit + 1, state);
+  #if X10_PERSIST_MOD_DATA == 1
+  eepromWrite(house, unit, state);
   #else
-  moduleState[house << 4 | unit] = state;
+  moduleState[parseHouseCode(house) << 4 | (unit - 1)] = state;
   #endif
 }
 #endif
 
 void X10ex::wipeModuleData(uint8_t house, uint8_t unit, bool info)
 {
+#if X10_PERSIST_MOD_DATA
   house = parseHouseCode(house);
   unit--;
   uint16_t ix = 0;
@@ -726,27 +737,31 @@ void X10ex::wipeModuleData(uint8_t house, uint8_t unit, bool info)
   {
     if(info)
     {
-#if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
+  #if X10_PERSIST_MOD_DATA == 1
+    #if not defined(__AVR_ATmega8__) && not defined(__AVR_ATmega168__)
       uint8_t infoData = eepromRead(ix + 256);
       if(infoData & B100000)
       {
         eepromWrite((infoData & B11111) * X10_INFO_NAME_LEN + 512, '\0');
       }
-#endif
+    #endif
       eepromWrite(ix + 256, 0);
+  #endif
     }
     else
     {
-#if X10_PERSIST_STATE == 1
+  #if X10_PERSIST_MOD_DATA == 1
       eepromWrite(ix, 0);
-#else
+  #else
       moduleState[ix] = 0;
-#endif
+  #endif
     }
     ix++;
   }
+#endif
 }
 
+#if X10_PERSIST_MOD_DATA == 1
 uint8_t X10ex::eepromRead(uint16_t address)
 {
   // Return byte read from EEPROM, add 1 because of initial EEPROM value 255
@@ -778,6 +793,7 @@ uint8_t X10ex::eepromWrite(uint8_t house, uint8_t unit, uint8_t data, uint16_t o
     eepromWrite((house << 4 | unit) + offset, data);
   }
 }
+#endif
 
 void X10ex::clearReceiveBuffer()
 {
