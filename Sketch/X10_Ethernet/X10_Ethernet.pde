@@ -362,8 +362,11 @@ void processEthernetRequest()
                   {
                     x10exBufferError = x10ex.sendCmd(cmdHouse, cmdUnit, cmd, 2);
                   }
-                  printX10Message(ETHERNET_REST_MSG, cmdHouse, cmdUnit, cmd, 0, 0, 0);
-                  delay(POWER_LINE_MSG_TIME);
+                  if(!x10exBufferError)
+                  {
+                    printX10Message(ETHERNET_REST_MSG, cmdHouse, cmdUnit, cmd, 0, 0, 0);
+                    delay(POWER_LINE_MSG_TIME);
+                  }
                   break;
                 }
                 // Parse brightness command (0-100 percent)
@@ -371,8 +374,11 @@ void processEthernetRequest()
                 {
                   byte brightness = x10ex.percentToX10Brightness(stringToDecimal(buffer, eq + 1, endIx));
                   x10exBufferError = x10ex.sendExt(cmdHouse, cmdUnit, CMD_EXTENDED_CODE, brightness, EXC_PRE_SET_DIM, 2);
-                  printX10Message(ETHERNET_REST_MSG, cmdHouse, cmdUnit, CMD_EXTENDED_CODE, brightness, EXC_PRE_SET_DIM, 0);
-                  delay(POWER_LINE_MSG_TIME);
+                  if(!x10exBufferError)
+                  {
+                    printX10Message(ETHERNET_REST_MSG, cmdHouse, cmdUnit, CMD_EXTENDED_CODE, brightness, EXC_PRE_SET_DIM, 0);
+                    delay(POWER_LINE_MSG_TIME);
+                  }
                   break;
                 }
                 // Parse 3 byte command (Up to 16, 3 or 9 byte commands, are supported)
@@ -413,13 +419,13 @@ void processEthernetRequest()
       // User is trying to execute unsupported HTTP request method
       else if(method == HTTP_METHOD_UNKNOWN)
       {
-        client.println(" 501 Not Implemented\nContent-Type: text/json\n");
+        client.println(" 501 Not Implemented\nContent-Type: application/json\n");
       }
       // Response is always sent after successful GET, POST or DELETE request
       else
       {
         // Return JSON response
-        client.println(" 200 OK\nContent-Type: text/json\n");
+        client.println(" 200 OK\nContent-Type: application/json\n");
         if(house != '*' && unit > 0 && unit <= 16)
         {
           erPrintModuleState(client, house, unit, true, true);
