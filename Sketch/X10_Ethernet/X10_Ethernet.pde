@@ -413,7 +413,7 @@ void processEthernetRequest()
       // User is trying to execute unsupported HTTP request method
       else if(method == HTTP_METHOD_UNKNOWN)
       {
-        client.println(" 501 Not Implemented\nContent-Type: text/json");
+        client.println(" 501 Not Implemented\nContent-Type: text/json\n");
       }
       // Response is always sent after successful GET, POST or DELETE request
       else
@@ -633,6 +633,11 @@ bool erPrintModuleState(Client client, char house, byte unit, bool isFirst, bool
     client.println("\",");
     client.print("\"unit\": ");
     client.print(unit, DEC);
+    client.print(",\n\"url\": \"/");
+    client.print(house);
+    client.print("/");
+    client.print(unit, DEC);
+    client.print("/\"");
     if(info.type)
     {
       client.print(",\n\"type\": ");
@@ -644,11 +649,6 @@ bool erPrintModuleState(Client client, char house, byte unit, bool isFirst, bool
       client.print(info.name);
       client.print("\"");
     }
-    client.print(",\n\"url\": \"/");
-    client.print(house);
-    client.print("/");
-    client.print(unit, DEC);
-    client.print("/\"");
     if(state.isKnown)
     {
       client.print(",\n\"on\": ");
