@@ -251,6 +251,8 @@ void processEthernetRequest()
     while(client.connected())
     {
       byte readState = HTTP_STATE_PARSE_METHOD;
+      byte parsingEncoded = 0;
+      byte encodedChar;
       bool parsingText = false;
       byte bufferMax = HTTP_BUFFER_MAX;
       char buffer[HTTP_BUFFER_MAX + 1];
@@ -262,18 +264,36 @@ void processEthernetRequest()
       while(client.available())
       {
         char c = client.read();
-        if(c == '"')
+        // Handle encoded characters
+        if(c == '%')
         {
-          parsingText = !parsingText;
+          parsingEncoded = 2;
         }
-        // Space is only stored when parsing HTTP method or quoted text
-        else if(isgraph(c) || ((readState == HTTP_STATE_PARSE_METHOD || parsingText) && c == ' '))
+        else if(parsingEncoded)
         {
-          // When parsing quoted text or Base64 string, characters are not converted to upper case
-          buffer[HTTP_BUFFER_MAX - bufferMax] =
-            parsingText || readState == HTTP_STATE_AUTHENTICATE ?
-            c : toupper(c);
-          buffer[HTTP_BUFFER_MAX - --bufferMax] = '\0';
+          parsingEncoded--;
+          if(parsingEncoded) encodedChar = charHexToDecimal(c) * 16;
+          else c = charHexToDecimal(c) + encodedChar;
+        }
+        // Handle "normal" characters
+        if(!parsingEncoded)
+        {
+          // Enable quoted text parser (allows lower case and space)
+          if(c == '"')
+          {
+            parsingText = !parsingText;
+          }
+          // Space is only stored when parsing HTTP method or quoted text
+          else if(isgraph(c) || ((readState == HTTP_STATE_PARSE_METHOD || parsingText) && c == ' '))
+          {
+            // Space is normally replaced with '+' in encoded strings
+            if(parsingText && c == '+') c = ' ';
+            // When parsing quoted text or Base64 string, characters are not converted to upper case
+            buffer[HTTP_BUFFER_MAX - bufferMax] =
+              parsingText || readState == HTTP_STATE_AUTHENTICATE ?
+              c : toupper(c);
+            buffer[HTTP_BUFFER_MAX - --bufferMax] = '\0';
+          }
         }
         // We have reached end of line, buffer or transmission
         if(c == '\n' || !bufferMax || !client.available())
