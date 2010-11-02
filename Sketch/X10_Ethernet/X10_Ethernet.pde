@@ -14,7 +14,7 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu October 2010.              */
+/* Written by Thomas Mittet thomas@mittet.nu November 2010.             */
 /************************************************************************/
 
 #include <X10ex.h>
@@ -37,18 +37,29 @@
 #define MODULE_STATE_MSG "MS:"
 #define MSG_DATA_ERROR "_ExSyntax"
 
-// Default username and password are "test" and "test". NOTE: With basic authentication user name and password is sent in clear text
-// To generate Base64 string first concatenate the user name and password using colon as a serperator. Ex: testusername:testpassword
-// To encode the username:password string use an online encoder like: "http://www.opinionatedgeek.com/dotnet/tools/base64encode/"
-// NOTE: If you would like to disable Basic Authentication, just set the HTTP_AUTH_BASE64 define to an empty string ""
+// Default username and password are "test" and "test". NOTE: With basic authentication user name and password is sent in clear text.
+// To generate Base64 string first concatenate the user name and password using colon as a separator. Ex: testusername:testpassword
+// To encode the username:password string use an online encoder like: "http://www.opinionatedgeek.com/dotnet/tools/base64encode/".
+// NOTE: If you would like to disable Basic Authentication, just set the HTTP_AUTH_BASE64 define to an empty string "".
 #define HTTP_AUTH_BASE64 "dGVzdDp0ZXN0"
 
-#define HTTP_BUFFER_MAX 64
+// The buffer is used to hold data when reading HTTP request lines. If you are using a very long username and password, you might
+// need to increase the buffer size. Using long post strings, for example when executing scenarios with multiple extended commands,
+// might also cause the buffer to run out of space. With a buffer size of 64, you can send a scenario with 20 individual standard
+// commands or 7 individual extended commands. A standard command is 3 bytes long and an extended command is 9 bytes long.
+#define HTTP_BUFFER_MAX          64
 
-#define HTTP_STATE_PARSE_METHOD  0
-#define HTTP_STATE_AUTH_START    1
-#define HTTP_STATE_AUTH_DONE     2
-#define HTTP_STATE_BODY_DONE     3
+// I recommend disabling the "Expect: 100-continue" on your HTTP client. When posting data with this feature enabled the HTTP client
+// will send an "Expect: 100-continue" request in the header and then wait for the server to respond with a "100 Continue" before
+// sending the body. This makes HTTP post unnecessarily slow, especially when using slow cell phone connections. The default response
+// timeout is 5 seconds. To disable "Expect: 100-continue" support on the Arduino: just set the timeout defined below to 0.
+#define HTTP_CONTINUE_TIMEOUT  5000
+
+#define HTTP_STATE_PARSE_METHOD   0
+#define HTTP_STATE_AUTHENTICATE   1
+#define HTTP_STATE_WAIT_CONTINUE  2
+#define HTTP_STATE_CONTINUE       3
+#define HTTP_STATE_BODY_DONE      4
 
 #define HTTP_METHOD_UNKNOWN  0
 #define HTTP_METHOD_GET      1
@@ -260,7 +271,7 @@ void processEthernetRequest()
         {
           // When parsing quoted text or Base64 string, characters are not converted to upper case
           buffer[HTTP_BUFFER_MAX - bufferMax] =
-            parsingText || readState == HTTP_STATE_AUTH_START ?
+            parsingText || readState == HTTP_STATE_AUTHENTICATE ?
             c : toupper(c);
           buffer[HTTP_BUFFER_MAX - --bufferMax] = '\0';
         }
@@ -300,21 +311,38 @@ void processEthernetRequest()
                 }
               }
             }
-            readState = HTTP_STATE_AUTH_START;
+            readState = HTTP_STATE_AUTHENTICATE;
           }
           // Validate user credentials (stored in Base64 string)
-          else if(readState == HTTP_STATE_AUTH_START)
+          else if(readState == HTTP_STATE_AUTHENTICATE)
           {
             if(!lineLen) break;
             byte base64Len = strlen(HTTP_AUTH_BASE64);
             // Base64 string should be found at position 19 excluding whitespace
             if(!base64Len || (base64Len == lineLen - 19 && !strncmp(buffer + 19, HTTP_AUTH_BASE64, base64Len)))
             {
-              readState = HTTP_STATE_AUTH_DONE;
+              readState = HTTP_STATE_CONTINUE;
             }
           }
+#if HTTP_CONTINUE_TIMEOUT > 0
+          // Look for "Expect: 100-continue"
+          else if(readState == HTTP_STATE_CONTINUE && method == HTTP_METHOD_POST && !strncmp(buffer, "EXPECT:100-CONTINUE", 19))
+          {
+            client.println("HTTP/1.1 100 Continue\n");
+            readState = HTTP_STATE_WAIT_CONTINUE;
+          }
+          // Wait for client to receive "100 Continue" and start sending body
+          else if(readState == HTTP_STATE_WAIT_CONTINUE && !client.available() && lastLineLen)
+          {
+            for(int i = 0; i < HTTP_CONTINUE_TIMEOUT && !client.available(); i++)
+            {
+              delay(1);
+            }
+            readState = HTTP_STATE_CONTINUE;
+          }
+#endif
           // Parse body and execute commands, after blank line seperating body from head has been received
-          if(readState == HTTP_STATE_AUTH_DONE && method == HTTP_METHOD_POST && !lastLineLen)
+          if(readState >= HTTP_STATE_WAIT_CONTINUE && method == HTTP_METHOD_POST && !lastLineLen)
           {
             char cmdHouse = house;
             byte cmdUnit = unit;
@@ -396,7 +424,7 @@ void processEthernetRequest()
             readState = HTTP_STATE_BODY_DONE;
           }
           // Execute delete module state and info
-          else if(readState == HTTP_STATE_AUTH_DONE && method == HTTP_METHOD_DELETE)
+          else if(readState == HTTP_STATE_CONTINUE && method == HTTP_METHOD_DELETE)
           {
             x10ex.wipeModuleState(house, unit);
             x10ex.wipeModuleInfo(house, unit);
@@ -407,11 +435,11 @@ void processEthernetRequest()
           lastLineLen = lineLen;
         }
         // Check if we are done receiving
-        if((readState == HTTP_STATE_AUTH_DONE && method != HTTP_METHOD_POST) || readState == HTTP_STATE_BODY_DONE) break;
+        if((readState == HTTP_STATE_CONTINUE && method != HTTP_METHOD_POST) || readState == HTTP_STATE_BODY_DONE) break;
       }
       client.print("HTTP/1.1");
       // State AUTH_START means user has not provided valid credentials yet
-      if(readState <= HTTP_STATE_AUTH_START)
+      if(readState <= HTTP_STATE_AUTHENTICATE)
       {
         client.println(" 401 Authorization Required\nWWW-Authenticate: Basic realm=\"Secure Area\"\nContent-Type: text/html\n");
         client.print("<html><body>401 Unauthorized</body></html>");
