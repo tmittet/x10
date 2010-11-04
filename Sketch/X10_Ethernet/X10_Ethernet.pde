@@ -26,16 +26,18 @@
 #define DEBUG 0
 
 #define POWER_LINE_MSG "PL:"
-#define POWER_LINE_BUFFER_ERROR "PL:_ExBuffer"
 #define POWER_LINE_MSG_TIME 1400
 #define RADIO_FREQ_MSG "RF:"
 #define INFRARED_MSG "IR:"
 #define SERIAL_DATA_MSG "SD:"
 #define SERIAL_DATA_THRESHOLD 1000
-#define SERIAL_DATA_TIMEOUT "SD:_ExTimOut"
 #define ETHERNET_REST_MSG "ER:"
 #define MODULE_STATE_MSG "MS:"
+#define MSG_BUFFER_ERROR "_ExBuffer"
 #define MSG_DATA_ERROR "_ExSyntax"
+#define MSG_RECEIVE_TIMEOUT "_ExTimOut"
+#define MSG_AUTH_ERROR "_ExNoAuth"
+#define MSG_METHOD_ERROR "_ExMethod"
 
 // Default username and password are "test" and "test". NOTE: With basic authentication user name and password is sent in clear text.
 // To generate Base64 string first concatenate the user name and password using colon as a separator. Ex: testusername:testpassword
@@ -218,7 +220,8 @@ void processSdMessage()
     if(process3BMessage(SERIAL_DATA_MSG, byte1, byte2, byte3))
     {
       // Return error message if message sent to X10ex was not buffered successfully
-      Serial.println(POWER_LINE_BUFFER_ERROR);
+      Serial.print(SERIAL_DATA_MSG);
+      Serial.println(MSG_BUFFER_ERROR);
     }
     sdReceived = 0;
   }
@@ -236,7 +239,8 @@ void processSdMessage()
       bmHouse = 0;
       bmExtCommand = 0;
       sdReceived = 0;
-      Serial.println(SERIAL_DATA_TIMEOUT);
+      Serial.print(SERIAL_DATA_MSG);
+      Serial.println(MSG_RECEIVE_TIMEOUT);
       Serial.flush();
     }
   }
@@ -256,8 +260,8 @@ void processEthernetRequest()
       bool parsingText = false;
       byte bufferMax = HTTP_BUFFER_MAX;
       char buffer[HTTP_BUFFER_MAX + 1];
-      byte lastLineLen;
-      byte method;
+      byte lastLineLen = HTTP_BUFFER_MAX;
+      byte method = HTTP_METHOD_UNKNOWN;
       char house = '*';
       byte unit = 0;
       bool x10exBufferError = 0;
@@ -354,9 +358,15 @@ void processEthernetRequest()
           // Wait for client to receive "100 Continue" and start sending body
           else if(readState == HTTP_STATE_WAIT_CONTINUE && !client.available() && lastLineLen)
           {
-            for(int i = 0; i < HTTP_CONTINUE_TIMEOUT && !client.available(); i++)
+            int i;
+            for(int i = HTTP_CONTINUE_TIMEOUT; i > 0 && !client.available(); i--)
             {
               delay(1);
+            }
+            if(!i)
+            {
+              Serial.print(ETHERNET_REST_MSG);
+              Serial.println(MSG_RECEIVE_TIMEOUT);
             }
             readState = HTTP_STATE_CONTINUE;
           }
@@ -463,11 +473,15 @@ void processEthernetRequest()
       {
         client.println(" 401 Authorization Required\nWWW-Authenticate: Basic realm=\"Secure Area\"\nContent-Type: text/html\n");
         client.print("<html><body>401 Unauthorized</body></html>");
+        Serial.print(ETHERNET_REST_MSG);
+        Serial.println(MSG_AUTH_ERROR);
       }
       // User is trying to execute unsupported HTTP request method
       else if(method == HTTP_METHOD_UNKNOWN)
       {
         client.println(" 501 Not Implemented\nContent-Type: application/json\n");
+        Serial.print(ETHERNET_REST_MSG);
+        Serial.println(MSG_METHOD_ERROR);
       }
       // Response is always sent after successful GET, POST or DELETE request
       else
@@ -885,15 +899,15 @@ bool sendAllLightsOn()
   return
     // Bedroom
     x10ex.sendExtDim('A', 7, 80, EXC_DIM_TIME_4, 1) ||
-    // Livingroom table
+    // Dining Table
     x10ex.sendExtDim('A', 2, 70, EXC_DIM_TIME_4, 1) ||
     // Hall
     x10ex.sendExtDim('A', 8, 75, EXC_DIM_TIME_4, 1) ||
-    // Livingroom couch
+    // Couch
     x10ex.sendExtDim('A', 3, 90, EXC_DIM_TIME_4, 1) ||
     // Kitchen
     x10ex.sendExtDim('A', 9, 100, EXC_DIM_TIME_4, 1) ||
-    // Livingroom shelves
+    // TV Backlight
     x10ex.sendExtDim('A', 4, 40, EXC_DIM_TIME_4, 1);
 }
 
