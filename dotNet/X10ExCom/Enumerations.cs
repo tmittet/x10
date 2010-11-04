@@ -9,6 +9,7 @@
         PowerLine,
         Radio,
         Infrared,
+        Ethernet,
     }
 
     public enum X10House : byte
@@ -53,6 +54,14 @@
         U16 = 0xF,
 
         X = 0xFF,
+    }
+
+    public enum X10Type : byte
+    {
+        Unknown = 0x0,
+        Appliance = 0x0,
+        Dimmer = 0x0,
+        Sensor = 0x0,
     }
 
     public enum X10Command : byte

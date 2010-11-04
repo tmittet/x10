@@ -18,9 +18,12 @@
 /************************************************************************/
 
 using System;
+using System.Runtime.Serialization;
 
 namespace X10ExCom
 {
+    [Serializable]
+    [DataContract]
     public abstract class X10Message
     {
         public X10MessageSource Source { get; internal set; }
@@ -46,9 +49,13 @@ namespace X10ExCom
                 message = message.Substring(3);
             }
             X10Message x10Msg;
-            if (message.Length >= 3 && message.Substring(0, 3).ToUpper() == "_EX")
+            if (message.Length == 3 && message.ToUpper() == "X10")
             {
-                x10Msg = new X10Error(message.Substring(3));
+                x10Msg = new X10Boot();
+            }
+            else if (message.Length >= 3 && message.Substring(0, 3).ToUpper() == "_EX")
+            {
+                x10Msg = new X10Error(ParseSource(source), message.Substring(3));
             }
             else
             {
@@ -91,17 +98,24 @@ namespace X10ExCom
                 }
             }
             x10Msg.SourceString = source;
-            switch (source)
-            {
-                case "XP": x10Msg.Source = X10MessageSource.Parser; break;
-                case "SD": x10Msg.Source = X10MessageSource.Serial; break;
-                case "MS": x10Msg.Source = X10MessageSource.ModuleState; break;
-                case "PL": x10Msg.Source = X10MessageSource.PowerLine; break;
-                case "RF": x10Msg.Source = X10MessageSource.Radio; break;
-                case "IR": x10Msg.Source = X10MessageSource.Infrared; break;
-                default: x10Msg.Source = X10MessageSource.Unknown; break;
-            }
+            x10Msg.Source = ParseSource(source);
             return x10Msg;
+        }
+
+        internal static X10MessageSource ParseSource(string source)
+        {
+            source = source ?? "";
+            switch (source.TrimStart().TrimEnd(new [] { ' ', ':' }).ToUpper())
+            {
+                case "XP": return X10MessageSource.Parser;
+                case "SD": return X10MessageSource.Serial;
+                case "MS": return X10MessageSource.ModuleState;
+                case "PL": return X10MessageSource.PowerLine;
+                case "RF": return X10MessageSource.Radio;
+                case "IR": return X10MessageSource.Infrared;
+                case "ER": return X10MessageSource.Ethernet;
+                default: return X10MessageSource.Unknown;
+            }
         }
 
         public abstract override string ToString();

@@ -35,16 +35,20 @@
       <HintPath>..\libs\log4net.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.configuration" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Xml.Linq" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="X10Boot.cs" />
     <Compile Include="X10Error.cs" />
+    <Compile Include="X10Modules.cs" />
     <Compile Include="X10ScenarioExecute.cs" />
     <Compile Include="X10ModuleStateWipe.cs" />
     <Compile Include="X10ModuleStateRequest.cs" />

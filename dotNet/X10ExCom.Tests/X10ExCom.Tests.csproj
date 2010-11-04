@@ -44,6 +44,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="X10ErrorTests.cs" />
     <Compile Include="X10MessageTests.cs" />
     <Compile Include="X10ModuleStateWipeTests.cs" />
     <Compile Include="X10ModuleStateRequestTests.cs" />

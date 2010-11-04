@@ -1,12 +1,71 @@
 ﻿using System;
+using System.Runtime.Serialization;
 
 namespace X10ExCom
 {
+    [Serializable]
+    [DataContract]
     public class X10StandardMessage : X10Message
     {
         public X10House House { get; set; }
+
+        [DataMember(Name = "house", IsRequired = true, Order = 1)]
+        public string HouseString
+        {
+            get { return ((char)House).ToString(); }
+            set { House = (X10House)value[0]; }
+        }
+
+        [DataMember(Name = "unit", IsRequired = true, Order = 2)]
         public X10Unit Unit { get; set; }
+
+        [DataMember(Name = "url", IsRequired = true, Order = 3)]
+        public string Url { get; set; }
+
         public X10Command Command { get; set; }
+
+        [DataMember(Name = "type", IsRequired = false, Order = 4)]
+        public X10Type Type { get; set; }
+
+        [DataMember(Name = "name", IsRequired = false, Order = 5)]
+        public string Name { get; set; }
+
+        [DataMember(Name = "on", IsRequired = false, Order = 6)]
+        public bool? On
+        {
+            get
+            {
+                if (
+                    Command != X10Command.On &&
+                    Command != X10Command.Off &&
+                    Command != X10Command.StatusOn &&
+                    Command != X10Command.StatusOff &&
+                    Command != X10Command.Bright &&
+                    Command != X10Command.Dim)
+                {
+                    return null;
+                }
+                return Command == X10Command.On || Command ==  X10Command.StatusOn || Command == X10Command.Bright || Command == X10Command.Dim;
+            }
+            set
+            {
+                if (value.HasValue)
+                {
+                    Command = value.Value ? X10Command.StatusOn : X10Command.StatusOff;
+                }
+                
+            }
+        }
+
+        public X10StandardMessage()
+        {
+            Source = X10MessageSource.Ethernet;
+            House = X10House.X;
+            Unit = X10Unit.X;
+            Url = "/";
+            Command = X10Command.X;
+            Type = X10Type.Unknown;
+        }
 
         /// <summary>
         /// Creates new X10 standard message.
@@ -25,20 +84,22 @@ namespace X10ExCom
             }
             House = house;
             Unit = unit;
+            Url = "/" + House + "/" + ((byte)Unit + 1) + "/";
             Command = command;
+            Type = X10Type.Unknown;
         }
 
         /// <summary>
         /// Creates new X10 standard message.
         /// </summary>
-        /// <param name="house">Valid characters are A-P.</param>
+        /// <param name="house">Valid characters are A-P or *.</param>
         /// <param name="unit">Units range from 1-16, 0 is treated as no unit.</param>
         /// <param name="command">Commands range from 1-16, 0 is treated as no command.</param>
         public X10StandardMessage(char house, byte unit, byte command)
         {
             if ((house < (byte)'A' || house > (byte)'P') && house != '*')
             {
-                throw new ArgumentException("House is outside valid range A-P.");
+                throw new ArgumentException("House is outside valid range A-P or *.");
             }
             if (unit > 16)
             {
@@ -51,7 +112,9 @@ namespace X10ExCom
             Source = X10MessageSource.Unknown;
             House = (X10House)house;
             Unit = (X10Unit)unit - 1;
+            Url = "/" + House + "/" + ((byte)Unit + 1) + "/";
             Command = (X10Command)command - 1;
+            Type = X10Type.Unknown;
         }
 
         public override string ToString()

@@ -39,6 +39,7 @@ namespace X10ExCom.Tests
             Assert.AreEqual(X10MessageSource.PowerLine, X10Message.Parse("PL:A00").Source);
             Assert.AreEqual(X10MessageSource.Radio, X10Message.Parse("RF:A00").Source);
             Assert.AreEqual(X10MessageSource.Infrared, X10Message.Parse("IR:A00").Source);
+            Assert.AreEqual(X10MessageSource.Ethernet, X10Message.Parse("ER:A00").Source);
         }
 
         [Test, ExpectedException(typeof(ArgumentException))]

@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Runtime.Serialization;
 
 namespace X10ExCom
 {
+    [Serializable]
+    [DataContract]
     public class X10ExtendedMessage : X10StandardMessage
     {
         public byte ExtendedCommand { get; set; }
@@ -63,6 +66,7 @@ namespace X10ExCom
         /// ExtendedBrightness is calculated from ExtendedData when command is StatusOn, StatusOff
         /// or command is ExtendedCode and ExtendedCommand is PreSetDim.
         /// </summary>
+        [DataMember(Name = "brightness", IsRequired = false, Order = 7)]
         public byte ExtendedBrightness
         {
             get
@@ -75,6 +79,20 @@ namespace X10ExCom
                         Math.Round(100D * (ExtendedData & 0x3F) / 62) :
                         0);
             }
+            set
+            {
+                if (value > 0 && Command == X10Command.StatusOn || Command == X10Command.StatusOff)
+                {
+                    ExtendedCommand = (byte)X10ExtendedCategory.Module | (byte)X10ExtendedFunction.PreSetDim;
+                    ExtendedData = (byte)Math.Round(62 * (value >= 100 ? 1 : value / 100D));
+                }
+            }
+        }
+
+        public X10ExtendedMessage()
+        {
+            ExtendedCommand = 0;
+            ExtendedData = 0;
         }
 
         /// <summary>

@@ -204,7 +204,7 @@ namespace X10ExCom
                     {
                         string errorMessage = ex.GetType().Name + " thrown when parsing message \"" + messageTrimmed + "\". " + ex.Message;
                         _log.Warn(errorMessage);
-                        x10Message = new X10Error(X10MessageSource.Parser, "_ExParser", errorMessage);
+                        x10Message = new X10Error(X10MessageSource.Parser, "Parser", errorMessage);
                     }
                     InvokeMessageReceived(x10Message);
                 }
