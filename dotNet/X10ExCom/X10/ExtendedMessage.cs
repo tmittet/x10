@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
-namespace X10ExCom
+namespace X10ExCom.X10
 {
     [Serializable]
     [DataContract]
-    public class X10ExtendedMessage : X10StandardMessage
+    public class ExtendedMessage : StandardMessage
     {
         public byte ExtendedCommand { get; set; }
         public byte ExtendedData { get; set; }
@@ -16,7 +16,7 @@ namespace X10ExCom
         /// </summary>
         public byte ExtendedCategoryValue
         {
-            get { return Convert.ToByte(Command == X10Command.ExtendedCode ? ExtendedCommand >> 4 : 0); }
+            get { return Convert.ToByte(Command == Command.ExtendedCode ? ExtendedCommand >> 4 : 0); }
         }
 
         /// <summary>
@@ -25,7 +25,7 @@ namespace X10ExCom
         /// </summary>
         public byte ExtendedFunctionValue
         {
-            get { return Convert.ToByte(Command == X10Command.ExtendedCode ? ExtendedCommand & 0xF : 0); }
+            get { return Convert.ToByte(Command == Command.ExtendedCode ? ExtendedCommand & 0xF : 0); }
         }
 
         /// <summary>
@@ -36,10 +36,10 @@ namespace X10ExCom
         {
             get
             {
-                if (Command != X10Command.ExtendedCode) return String.Empty;
-                X10ExtendedCategory result;
+                if (Command != Command.ExtendedCode) return String.Empty;
+                ExtendedCategory result;
                 return
-                    Enum.TryParse(((X10ExtendedCategory)(ExtendedCommand & 0xF0)).ToString(), false, out result) ?
+                    Enum.TryParse(((ExtendedCategory)(ExtendedCommand & 0xF0)).ToString(), false, out result) ?
                     result.ToString() :
                     "Unknown";
             }
@@ -53,10 +53,10 @@ namespace X10ExCom
         {
             get
             {
-                if (Command != X10Command.ExtendedCode) return String.Empty;
-                X10ExtendedFunction result;
+                if (Command != Command.ExtendedCode) return String.Empty;
+                ExtendedFunction result;
                 return
-                    Enum.TryParse(((X10ExtendedFunction)(ExtendedCommand)).ToString(), false, out result) ?
+                    Enum.TryParse(((ExtendedFunction)(ExtendedCommand)).ToString(), false, out result) ?
                     result.ToString() :
                     "Unknown";
             }
@@ -73,23 +73,23 @@ namespace X10ExCom
             {
                 return
                     Convert.ToByte(
-                        Command == X10Command.StatusOn ||
-                        Command == X10Command.StatusOff ||
-                        (Command == X10Command.ExtendedCode && ExtendedCommand == (byte)X10ExtendedFunction.PreSetDim) ?
+                        Command == Command.StatusOn ||
+                        Command == Command.StatusOff ||
+                        (Command == Command.ExtendedCode && ExtendedCommand == (byte)ExtendedFunction.PreSetDim) ?
                         Math.Round(100D * (ExtendedData & 0x3F) / 62) :
                         0);
             }
             set
             {
-                if (value > 0 && Command == X10Command.StatusOn || Command == X10Command.StatusOff)
+                if (value > 0 && Command == Command.StatusOn || Command == Command.StatusOff)
                 {
-                    ExtendedCommand = (byte)X10ExtendedCategory.Module | (byte)X10ExtendedFunction.PreSetDim;
+                    ExtendedCommand = (byte)ExtendedCategory.Module | (byte)ExtendedFunction.PreSetDim;
                     ExtendedData = (byte)Math.Round(62 * (value >= 100 ? 1 : value / 100D));
                 }
             }
         }
 
-        public X10ExtendedMessage()
+        public ExtendedMessage()
         {
             ExtendedCommand = 0;
             ExtendedData = 0;
@@ -103,7 +103,7 @@ namespace X10ExCom
         /// <param name="command">Only commands ExtendedCode and ExtendedData are valid for extended messages.</param>
         /// <param name="extendedCommand">Byte 0-255. Make sure that either extended command or data is above 0.</param>
         /// <param name="extendedData">Byte 0-255. Make sure that either extended command or data is above 0.</param>
-        public X10ExtendedMessage(X10House house, X10Unit unit, X10Command command, byte extendedCommand, byte extendedData)
+        public ExtendedMessage(House house, Unit unit, Command command, byte extendedCommand, byte extendedData)
             : base(house, unit, command)
         {
             Validate(extendedCommand, extendedData);
@@ -119,7 +119,7 @@ namespace X10ExCom
         /// <param name="command">Only commands 7 (ExtendedCode) and 12 (ExtendedData) are valid for extended messages.</param>
         /// <param name="extendedCommand">Byte 0-255. Make sure that either extended command or data is above 0.</param>
         /// <param name="extendedData">Byte 0-255. Make sure that either extended command or data is above 0.</param>
-        public X10ExtendedMessage(char house, byte unit, byte command, byte extendedCommand, byte extendedData)
+        public ExtendedMessage(char house, byte unit, byte command, byte extendedCommand, byte extendedData)
             : base(house, unit, command)
         {
             Validate(extendedCommand, extendedData);
@@ -143,7 +143,7 @@ namespace X10ExCom
         {
             switch (Command)
             {
-                case X10Command.ExtendedCode:
+                case Command.ExtendedCode:
                     return String.Format(
                         "{0}, Category = {1} (0x{2}), Function = {3} (0x{4}), Data = 0x{5}",
                         base.ToHumanReadableString(),
@@ -152,8 +152,8 @@ namespace X10ExCom
                         ExtendedFunctionName,
                         ExtendedFunctionValue.ToString("X"),
                         ExtendedData.ToString("X").PadLeft(2, '0'));
-                case X10Command.StatusOn:
-                case X10Command.StatusOff:
+                case Command.StatusOn:
+                case Command.StatusOff:
                     return String.Format(
                         "{0}, Brightness = {1}%",
                         base.ToHumanReadableString(),
@@ -169,27 +169,27 @@ namespace X10ExCom
 
         private void Validate(byte extendedCommand, byte extendedData)
         {
-            if (House == X10House.X)
+            if (House == House.X)
             {
                 throw new ArgumentException("House X (all house codes) is invalid when sending extended messages.");
             }
-            if (Unit == X10Unit.X)
+            if (Unit == Unit.X)
             {
                 throw new ArgumentException("Unit X (no unit) is invalid when sending extended messages.");
             }
             if (
-                Command != X10Command.ExtendedCode && Command != X10Command.ExtendedData &&
+                Command != Command.ExtendedCode && Command != Command.ExtendedData &&
                 // Allow status on and staus of because of module state request response data
-                Command != X10Command.StatusOn && Command != X10Command.StatusOff)
+                Command != Command.StatusOn && Command != Command.StatusOff)
             {
                 throw new ArgumentException(String.Format(
                     "\"{0}\" command is invalid when sending extended messages. " +
                     "Command must either be set to {1} ({2}) or {3} ({4}).",
                     Command,
-                    X10Command.ExtendedCode,
-                    (byte)X10Command.ExtendedCode,
-                    X10Command.ExtendedData,
-                    (byte)X10Command.ExtendedData));
+                    Command.ExtendedCode,
+                    (byte)Command.ExtendedCode,
+                    Command.ExtendedData,
+                    (byte)Command.ExtendedData));
             }
             if(extendedCommand == 0 && extendedData == 0)
             {

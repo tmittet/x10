@@ -1,37 +1,37 @@
 ﻿using System;
 using System.Runtime.Serialization;
 
-namespace X10ExCom
+namespace X10ExCom.X10
 {
     [Serializable]
     [DataContract]
-    public class X10StandardMessage : X10Message
+    public class StandardMessage : Message
     {
-        public X10House House { get; set; }
+        public House House { get; set; }
 
         [DataMember(Name = "house", IsRequired = true, Order = 1)]
         public string HouseString
         {
             get { return ((char)House).ToString(); }
-            set { House = (X10House)value[0]; }
+            set { House = (House)value[0]; }
         }
 
-        public X10Unit Unit { get; set; }
+        public Unit Unit { get; set; }
 
         [DataMember(Name = "unit", IsRequired = true, Order = 2)]
         public byte UnitNumber
         {
             get { return (byte)((byte)Unit + 1); }
-            set { Unit = (X10Unit)(byte)(value - 1); }
+            set { Unit = (Unit)(byte)(value - 1); }
         }
 
         [DataMember(Name = "url", IsRequired = true, Order = 3)]
         public string Url { get; set; }
 
-        public X10Command Command { get; set; }
+        public Command Command { get; set; }
 
         [DataMember(Name = "type", IsRequired = false, Order = 4)]
-        public X10Type Type { get; set; }
+        public ModuleType ModuleType { get; set; }
 
         [DataMember(Name = "name", IsRequired = false, Order = 5)]
         public string Name { get; set; }
@@ -42,35 +42,35 @@ namespace X10ExCom
             get
             {
                 if (
-                    Command != X10Command.On &&
-                    Command != X10Command.Off &&
-                    Command != X10Command.StatusOn &&
-                    Command != X10Command.StatusOff &&
-                    Command != X10Command.Bright &&
-                    Command != X10Command.Dim)
+                    Command != Command.On &&
+                    Command != Command.Off &&
+                    Command != Command.StatusOn &&
+                    Command != Command.StatusOff &&
+                    Command != Command.Bright &&
+                    Command != Command.Dim)
                 {
                     return null;
                 }
-                return Command == X10Command.On || Command ==  X10Command.StatusOn || Command == X10Command.Bright || Command == X10Command.Dim;
+                return Command == Command.On || Command ==  Command.StatusOn || Command == Command.Bright || Command == Command.Dim;
             }
             set
             {
                 if (value.HasValue)
                 {
-                    Command = value.Value ? X10Command.StatusOn : X10Command.StatusOff;
+                    Command = value.Value ? Command.StatusOn : Command.StatusOff;
                 }
                 
             }
         }
 
-        public X10StandardMessage()
+        public StandardMessage()
         {
-            Source = X10MessageSource.Ethernet;
-            House = X10House.X;
-            Unit = X10Unit.X;
+            Source = MessageSource.Ethernet;
+            House = House.X;
+            Unit = Unit.X;
             Url = "/";
-            Command = X10Command.X;
-            Type = X10Type.Unknown;
+            Command = Command.X;
+            ModuleType = ModuleType.Unknown;
         }
 
         /// <summary>
@@ -79,10 +79,10 @@ namespace X10ExCom
         /// <param name="house">Valid range is A-P.</param>
         /// <param name="unit">Valid units are 01-16 and X for no unit.</param>
         /// <param name="command">All commands are valid, use X for no command.</param>
-        public X10StandardMessage(X10House house, X10Unit unit, X10Command command)
+        public StandardMessage(House house, Unit unit, Command command)
         {
-            Source = X10MessageSource.Unknown;
-            if (house == X10House.X)
+            Source = MessageSource.Unknown;
+            if (house == House.X)
             {
                 throw new ArgumentException(
                     "House is outside valid range A-P. " +
@@ -92,7 +92,7 @@ namespace X10ExCom
             Unit = unit;
             Url = "/" + House + "/" + ((byte)Unit + 1) + "/";
             Command = command;
-            Type = X10Type.Unknown;
+            ModuleType = ModuleType.Unknown;
         }
 
         /// <summary>
@@ -101,7 +101,7 @@ namespace X10ExCom
         /// <param name="house">Valid characters are A-P or *.</param>
         /// <param name="unit">Units range from 1-16, 0 is treated as no unit.</param>
         /// <param name="command">Commands range from 1-16, 0 is treated as no command.</param>
-        public X10StandardMessage(char house, byte unit, byte command)
+        public StandardMessage(char house, byte unit, byte command)
         {
             if ((house < (byte)'A' || house > (byte)'P') && house != '*')
             {
@@ -115,12 +115,12 @@ namespace X10ExCom
             {
                 throw new ArgumentException("Command is outside valid range 0-16.");
             }
-            Source = X10MessageSource.Unknown;
-            House = (X10House)house;
-            Unit = (X10Unit)unit - 1;
+            Source = MessageSource.Unknown;
+            House = (House)house;
+            Unit = (Unit)unit - 1;
             Url = "/" + House + "/" + ((byte)Unit + 1) + "/";
-            Command = (X10Command)command - 1;
-            Type = X10Type.Unknown;
+            Command = (Command)command - 1;
+            ModuleType = ModuleType.Unknown;
         }
 
         public override string ToString()
@@ -139,7 +139,7 @@ namespace X10ExCom
                 base.ToHumanReadableString(),
                 Convert.ToChar(House),
                 UnitToString(Unit, "_"),
-                Type,
+                ModuleType,
                 String.IsNullOrEmpty(Name) ? "" : " (" + Name + ")",
                 Command);
         }

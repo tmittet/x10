@@ -1,8 +1,8 @@
 ﻿using System;
 
-namespace X10ExCom
+namespace X10ExCom.X10
 {
-    public class X10Boot : X10Message
+    public class Boot : Message
     {
         public override string ToString()
         {

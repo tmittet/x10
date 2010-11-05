@@ -1,14 +1,14 @@
 ﻿using System;
 
-namespace X10ExCom
+namespace X10ExCom.X10
 {
-    public class X10ScenarioExecute : X10Message
+    public class ScenarioExecute : Message
     {
         public byte Scenario { get; set; }
 
-        public X10ScenarioExecute(byte scenario)
+        public ScenarioExecute(byte scenario)
         {
-            Source = X10MessageSource.Unknown;
+            Source = MessageSource.Unknown;
             Scenario = scenario;
         }
 

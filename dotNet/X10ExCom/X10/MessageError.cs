@@ -1,13 +1,13 @@
 ﻿using System;
 
-namespace X10ExCom
+namespace X10ExCom.X10
 {
-    public class X10Error : X10Message
+    public class MessageError : Message
     {
         public string Code { get; private set; }
         public string Message { get; private set; }
 
-        public X10Error(X10MessageSource source, string code)
+        public MessageError(MessageSource source, string code)
         {
             Source = source;
             Code = code ?? "";
@@ -21,7 +21,7 @@ namespace X10ExCom
                     break;
                 case "TIMOUT":
                     Message =
-                        Source != X10MessageSource.Ethernet ?
+                        Source != MessageSource.Ethernet ?
                         "Complete 3 or 9 character message not received within timeout." :
                         "Response Timeout. Client failed to send response to 100 Continue challenge within threshold.";
                     break;
@@ -37,7 +37,7 @@ namespace X10ExCom
             }
         }
 
-        public X10Error(X10MessageSource source, string code, string message)
+        public MessageError(MessageSource source, string code, string message)
         {
             Source = source;
             Code = code;

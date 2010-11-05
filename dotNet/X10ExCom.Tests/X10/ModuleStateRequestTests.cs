@@ -1,7 +1,8 @@
 ﻿using System;
 using NUnit.Framework;
+using X10ExCom.X10;
 
-namespace X10ExCom.Tests
+namespace X10ExCom.Tests.X10
 {
     [TestFixture]
     public class X10ModuleStateRequestTests
@@ -10,8 +11,8 @@ namespace X10ExCom.Tests
         public void VerifyThatCorrectlyCreatedMessagesResultInValidToStringOutput()
         {
             string expected = "R**";
-            string actualUsingBytes = new X10ModuleStateRequest('*', 0).ToString();
-            string actualUsingEnums = new X10ModuleStateRequest(X10House.X, X10Unit.X).ToString();
+            string actualUsingBytes = new ModuleStateRequest('*', 0).ToString();
+            string actualUsingEnums = new ModuleStateRequest(House.X, Unit.X).ToString();
             Assert.AreEqual(expected, actualUsingBytes);
             Assert.AreEqual(expected, actualUsingEnums);
             for (var house = 'A'; house <= 'P'; house++ )
@@ -19,8 +20,8 @@ namespace X10ExCom.Tests
                 for(byte unit = 0; unit <= 16; unit++)
                 {
                     expected = "R" + house + (unit == 0 ? "*" : (unit - 1).ToString("X"));
-                    actualUsingBytes = new X10ModuleStateRequest(house, unit).ToString();
-                    actualUsingEnums = new X10ModuleStateRequest((X10House)house, (X10Unit)(unit - 1)).ToString();
+                    actualUsingBytes = new ModuleStateRequest(house, unit).ToString();
+                    actualUsingEnums = new ModuleStateRequest((House)house, (Unit)(unit - 1)).ToString();
                     Assert.AreEqual(expected, actualUsingBytes);
                     Assert.AreEqual(expected, actualUsingEnums);
                 }
@@ -30,13 +31,13 @@ namespace X10ExCom.Tests
         [Test, ExpectedException(typeof(ArgumentException))]
         public void VerifyThatMessageCannotBeCreatedWithInvalidHouseValue()
         {
-            new X10ModuleStateRequest('W', 1);
+            new ModuleStateRequest('W', 1);
         }
 
         [Test, ExpectedException(typeof(ArgumentException))]
         public void VerifyThatMessageCannotBeCreatedWithInvalidUnitValue()
         {
-            new X10ModuleStateRequest('A', 17);
+            new ModuleStateRequest('A', 17);
         }
     }
 }

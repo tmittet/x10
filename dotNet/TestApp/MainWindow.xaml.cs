@@ -14,7 +14,7 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu October 2010.              */
+/* Written by Thomas Mittet thomas@mittet.nu November 2010.             */
 /************************************************************************/
 
 using System;
@@ -22,6 +22,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using X10ExCom;
+using X10ExCom.X10;
 
 namespace TestApp
 {
@@ -34,10 +35,10 @@ namespace TestApp
 
         private Serial _serial;
 
-        private X10House House
+        private House House
         {
-            get { return cbxHouse.SelectedIndex == 0 ? X10House.X : (X10House)cbxHouse.SelectedIndex + 64; }
-            set { cbxHouse.SelectedIndex = value == X10House.X ? 0 : (byte)value - 64; }
+            get { return cbxHouse.SelectedIndex == 0 ? House.X : (House)cbxHouse.SelectedIndex + 64; }
+            set { cbxHouse.SelectedIndex = value == House.X ? 0 : (byte)value - 64; }
         }
 
         private byte Scenario
@@ -58,16 +59,16 @@ namespace TestApp
             set { cbxScenario.Text = value == 0 ? "" : value.ToString("X").PadLeft(2, '0'); }
         }
 
-        private X10Unit Unit
+        private Unit Unit
         {
-            get { return cbxUnit.SelectedIndex == 0 ? X10Unit.X : (X10Unit)cbxUnit.SelectedIndex - 1; }
-            set { cbxUnit.SelectedIndex = value == X10Unit.X ? 0 : (byte)value + 1; }
+            get { return cbxUnit.SelectedIndex == 0 ? Unit.X : (Unit)cbxUnit.SelectedIndex - 1; }
+            set { cbxUnit.SelectedIndex = value == Unit.X ? 0 : (byte)value + 1; }
         }
 
-        private X10Command Command
+        private Command Command
         {
-            get { return cbxCommand.SelectedIndex == 0 ? X10Command.X : (X10Command)cbxCommand.SelectedIndex - 1; }
-            set { cbxCommand.SelectedIndex = value == X10Command.X ? 0 : (byte)value + 1; }
+            get { return cbxCommand.SelectedIndex == 0 ? Command.X : (Command)cbxCommand.SelectedIndex - 1; }
+            set { cbxCommand.SelectedIndex = value == Command.X ? 0 : (byte)value + 1; }
         }
 
         private byte ExtendedCommand
@@ -161,17 +162,17 @@ namespace TestApp
                 cbxScenario.Items.Add(i.ToString("X").PadLeft(2, '0'));
             }
             cbxExtCommand.Items.Add("0x31 (Pre Set Dim)");
-            House = X10House.A;
+            House = House.A;
             Scenario = 1;
-            Unit = X10Unit.X;
-            Command = X10Command.X;
+            Unit = Unit.X;
+            Command = Command.X;
         }
 
         #endregion
 
         #region Serial Port Events
 
-        void _serial_MessageReceived(object source, X10Message message)
+        void _serial_MessageReceived(object source, Message message)
         {
             txtReceivedLog.Text += message.SourceString + ": " + message + Environment.NewLine;
             txtReceivedLog.ScrollToEnd();
@@ -180,11 +181,11 @@ namespace TestApp
                 message.ToHumanReadableString() +
                 Environment.NewLine;
             txtParsedEventLog.ScrollToEnd();
-            if (cbxUpdateUiOnMessage.IsChecked == true && message.Source == X10MessageSource.PowerLine)
+            if (cbxUpdateUiOnMessage.IsChecked == true && message.Source == MessageSource.PowerLine)
             {
                 UpdateUiOnStateChange(message);
             }
-            else if (cbxUpdateUiOnStateRequest.IsChecked == true && message.Source == X10MessageSource.ModuleState)
+            else if (cbxUpdateUiOnStateRequest.IsChecked == true && message.Source == MessageSource.ModuleState)
             {
                 UpdateUiOnStateChange(message);
             }
@@ -309,10 +310,10 @@ namespace TestApp
             // If selected message type is Standard Message
             if (cbxType.SelectedIndex == 0)
             {
-                rabOn.IsEnabled = Unit != X10Unit.X;
-                rabOff.IsEnabled = Unit != X10Unit.X;
-                btnGetState.IsEnabled = Unit != X10Unit.X;
-                sdrBrightness.IsEnabled = Unit != X10Unit.X;
+                rabOn.IsEnabled = Unit != Unit.X;
+                rabOff.IsEnabled = Unit != Unit.X;
+                btnGetState.IsEnabled = Unit != Unit.X;
+                sdrBrightness.IsEnabled = Unit != Unit.X;
             }
             // Update UI
             SelectionChangeUpdate();
@@ -321,29 +322,29 @@ namespace TestApp
         private void cbxCommand_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             bool isNoUnitCommand =
-                Command == X10Command.AllLightsOff ||
-                Command == X10Command.AllLightsOn ||
-                Command == X10Command.AllUnitsOff ||
-                Command == X10Command.Bright ||
-                Command == X10Command.Dim ||
-                Command == X10Command.HailAcknowledge ||
-                Command == X10Command.HailRequest;
+                Command == Command.AllLightsOff ||
+                Command == Command.AllLightsOn ||
+                Command == Command.AllUnitsOff ||
+                Command == Command.Bright ||
+                Command == Command.Dim ||
+                Command == Command.HailAcknowledge ||
+                Command == Command.HailRequest;
             if (isNoUnitCommand)
             {
-                Unit = X10Unit.X;
+                Unit = Unit.X;
             }
             SelectionChangeUpdate();
         }
 
         private void rabOn_Checked(object sender, RoutedEventArgs e)
         {
-            Command = X10Command.On;
+            Command = Command.On;
             btnSend_Click(sender, e);
         }
 
         private void rabOff_Checked(object sender, RoutedEventArgs e)
         {
-            Command = X10Command.Off;
+            Command = Command.Off;
             btnSend_Click(sender, e);
         }
 
@@ -352,7 +353,7 @@ namespace TestApp
             cbxUpdateUiOnStateRequest.IsChecked = true;
             try
             {
-                X10ModuleStateRequest message = new X10ModuleStateRequest(House, Unit);
+                ModuleStateRequest message = new ModuleStateRequest(House, Unit);
                 _serial.SendMessage(message);
                 txtSentLog.Text += message + Environment.NewLine;
                 txtSentLog.ScrollToEnd();
@@ -365,7 +366,7 @@ namespace TestApp
 
         private void sdrBrightness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            Command = X10Command.ExtendedCode;
+            Command = Command.ExtendedCode;
             cbxExtCommand.Text = "0x31 (Pre Set Dim)";
             cbxExtCommand.SelectedValue = "0x31 (Pre Set Dim)";
             txtExtData.Text = "0x" + Convert.ToByte(Math.Round(62D * Brightness / 100)).ToString("X").PadLeft(2, '0');
@@ -417,7 +418,7 @@ namespace TestApp
         {
             try
             {
-                X10Message message = X10Message.Parse(txtMessage.Text.Trim());
+                Message message = Message.Parse(txtMessage.Text.Trim());
                 _serial.SendMessage(message);
                 txtSentLog.Text += message + Environment.NewLine;
                 txtSentLog.ScrollToEnd();
@@ -459,25 +460,25 @@ namespace TestApp
                 switch (cbxType.SelectedIndex)
                 {
                     case 1: // Scenario Execute
-                        txtMessage.Text = new X10ScenarioExecute(Scenario).ToString();
+                        txtMessage.Text = new ScenarioExecute(Scenario).ToString();
                         break;
                     case 2: // Module State Request
-                        txtMessage.Text = new X10ModuleStateRequest(House, Unit).ToString();
+                        txtMessage.Text = new ModuleStateRequest(House, Unit).ToString();
                         break;
                     case 3: // Module State Wipe
-                        txtMessage.Text = new X10ModuleStateWipe(House).ToString();
+                        txtMessage.Text = new ModuleStateWipe(House).ToString();
                         break;
                     default: // X10 Message
-                        if (Command != X10Command.ExtendedCode && Command != X10Command.ExtendedData)
+                        if (Command != Command.ExtendedCode && Command != Command.ExtendedData)
                         {
-                            txtMessage.Text = new X10StandardMessage(House, Unit, Command).ToString();
+                            txtMessage.Text = new StandardMessage(House, Unit, Command).ToString();
                         }
                         else
                         {
                             extendedVisible = Visibility.Visible;
                             if (ExtendedCommand != 0 || ExtendedData != 0)
                             {
-                                txtMessage.Text = new X10ExtendedMessage(House, Unit, Command, ExtendedCommand, ExtendedData).ToString();
+                                txtMessage.Text = new ExtendedMessage(House, Unit, Command, ExtendedCommand, ExtendedData).ToString();
                             }
                         }
                         break;
@@ -493,36 +494,36 @@ namespace TestApp
             txtExtData.Visibility = extendedVisible;
         }
 
-        private void UpdateUiOnStateChange(X10Message message)
+        private void UpdateUiOnStateChange(Message message)
         {
-            if (message is X10StandardMessage)
+            if (message is StandardMessage)
             {
                 cbxType.SelectedIndex = 0;
-                X10StandardMessage stdMessage = message as X10StandardMessage;
+                StandardMessage stdMessage = message as StandardMessage;
                 House = stdMessage.House;
                 Unit = stdMessage.Unit;
                 cbxCommand.SelectionChanged -= cbxCommand_SelectionChanged;
                 Command = stdMessage.Command;
                 cbxCommand.SelectionChanged += cbxCommand_SelectionChanged;
                 if (
-                    Command == X10Command.On ||
-                    Command == X10Command.Bright ||
-                    Command == X10Command.Dim ||
-                    Command == X10Command.StatusOn)
+                    Command == Command.On ||
+                    Command == Command.Bright ||
+                    Command == Command.Dim ||
+                    Command == Command.StatusOn)
                 {
                     On = true;
                 }
-                else if (Command == X10Command.Off || Command == X10Command.StatusOff)
+                else if (Command == Command.Off || Command == Command.StatusOff)
                 {
                     On = false;
                 }
             }
-            if (message is X10ExtendedMessage)
+            if (message is ExtendedMessage)
             {
-                X10ExtendedMessage extMessage = message as X10ExtendedMessage;
+                ExtendedMessage extMessage = message as ExtendedMessage;
                 if (extMessage.ExtendedBrightness > 0)
                 {
-                    if (extMessage.Command != X10Command.StatusOff)
+                    if (extMessage.Command != Command.StatusOff)
                     {
                         On = true;
                     }

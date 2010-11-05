@@ -2,13 +2,13 @@
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace X10ExCom
+namespace X10ExCom.X10
 {
     [Serializable]
     [DataContract]
-    internal class X10Modules
+    internal class Modules
     {
         [DataMember(IsRequired = true, Name = "module")]
-        public IEnumerable<X10ExtendedMessage> Module { get; set; }
+        public IEnumerable<ExtendedMessage> Module { get; set; }
     }
 }

@@ -1,7 +1,8 @@
 ﻿using System;
 using NUnit.Framework;
+using X10ExCom.X10;
 
-namespace X10ExCom.Tests
+namespace X10ExCom.Tests.X10
 {
     [TestFixture]
     public class X10ScenarioExecuteTests
@@ -12,7 +13,7 @@ namespace X10ExCom.Tests
             for (int i = 0; i <= 255; i++)
             {
                 string expected = "S" + i.ToString("X").PadLeft(2, '0');
-                string actual = new X10ScenarioExecute((byte)i).ToString();
+                string actual = new ScenarioExecute((byte)i).ToString();
                 Assert.AreEqual(expected, actual);
             }
         }

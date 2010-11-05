@@ -14,7 +14,7 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu October 2010.              */
+/* Written by Thomas Mittet thomas@mittet.nu November 2010.             */
 /************************************************************************/
 
 using System;
@@ -23,10 +23,11 @@ using System.ComponentModel;
 using System.IO.Ports;
 using System.Text;
 using System.Threading;
+using X10ExCom.X10;
 
 namespace X10ExCom
 {
-    public delegate void MessageReceivedHandler(object source, X10Message message);
+    public delegate void MessageReceivedHandler(object source, Message message);
 
     public class Serial : IDisposable
     {
@@ -155,7 +156,7 @@ namespace X10ExCom
             _log.Info("Serial connection with Arduino running X10ex established on port \"" + SerialPort.PortName + "\".");
         }
 
-        public void SendMessage(X10Message message)
+        public void SendMessage(Message message)
         {
             byte[] bytes = Encoding.ASCII.GetBytes(message.ToString());
             SerialPort.Write(bytes, 0, bytes.Length);
@@ -194,17 +195,17 @@ namespace X10ExCom
                 foreach (string message in messages)
                 {
                     string messageTrimmed = message.Trim(new[] {' ', '\r', '\n'});
-                    X10Message x10Message;
+                    Message x10Message;
                     try
                     {
-                        x10Message = X10Message.Parse(messageTrimmed);
+                        x10Message = Message.Parse(messageTrimmed);
                         _log.Debug(x10Message.GetType().Name + " parsed successfully: " + messageTrimmed);
                     }
                     catch (Exception ex)
                     {
                         string errorMessage = ex.GetType().Name + " thrown when parsing message \"" + messageTrimmed + "\". " + ex.Message;
                         _log.Warn(errorMessage);
-                        x10Message = new X10Error(X10MessageSource.Parser, "Parser", errorMessage);
+                        x10Message = new MessageError(MessageSource.Parser, "Parser", errorMessage);
                     }
                     InvokeMessageReceived(x10Message);
                 }
@@ -216,7 +217,7 @@ namespace X10ExCom
             _log.Error("Serial Port Error Received. Type: " + e.EventType);
         }
 
-        private void InvokeMessageReceived(X10Message message)
+        private void InvokeMessageReceived(Message message)
         {
             if (MessageReceived != null)
             {

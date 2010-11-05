@@ -1,7 +1,8 @@
 ﻿using System;
 using NUnit.Framework;
+using X10ExCom.X10;
 
-namespace X10ExCom.Tests
+namespace X10ExCom.Tests.X10
 {
     [TestFixture]
     public class X10ModuleStateWipeTests
@@ -10,15 +11,15 @@ namespace X10ExCom.Tests
         public void VerifyThatCorrectlyCreatedMessagesResultInValidToStringOutput()
         {
             string expected = "RW*";
-            string actualUsingBytes = new X10ModuleStateWipe('*').ToString();
-            string actualUsingEnums = new X10ModuleStateWipe(X10House.X).ToString();
+            string actualUsingBytes = new ModuleStateWipe('*').ToString();
+            string actualUsingEnums = new ModuleStateWipe(House.X).ToString();
             Assert.AreEqual(expected, actualUsingBytes);
             Assert.AreEqual(expected, actualUsingEnums);
             for (var house = 'A'; house <= 'P'; house++ )
             {
                 expected = "RW" + house;
-                actualUsingBytes = new X10ModuleStateWipe(house).ToString();
-                actualUsingEnums = new X10ModuleStateWipe((X10House)house).ToString();
+                actualUsingBytes = new ModuleStateWipe(house).ToString();
+                actualUsingEnums = new ModuleStateWipe((House)house).ToString();
                 Assert.AreEqual(expected, actualUsingBytes);
                 Assert.AreEqual(expected, actualUsingEnums);
             }
@@ -27,7 +28,7 @@ namespace X10ExCom.Tests
         [Test, ExpectedException(typeof(ArgumentException))]
         public void VerifyThatMessageCannotBeCreatedWithInvalidHouseValue()
         {
-            new X10ModuleStateWipe('W');
+            new ModuleStateWipe('W');
         }
     }
 }
