@@ -8,9 +8,9 @@ namespace X10ExCom.Tests
     [TestFixture]
     public class RestClientTests
     {
-        private const string URI = "http://mittet.dyndns.org/";
-        private const string USERNAME = "thomas";
-        private const string PASSWORD = "spokelse";
+        private const string URI = "http://arduino_ip/";
+        private const string USERNAME = "test";
+        private const string PASSWORD = "test";
 
         [Test]
         [Ignore]
