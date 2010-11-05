@@ -20,8 +20,8 @@ namespace X10ExCom
         public override string ToHumanReadableString()
         {
             return String.Format(
-                "Type = {0}, Scenario = 0x{1} ({2})",
-                "ScenarioExecute",
+                "{0}Scenario = 0x{1} ({2})",
+                base.ToHumanReadableString(),
                 Scenario.ToString("X").PadLeft(2, '0'),
                 Scenario);
         }

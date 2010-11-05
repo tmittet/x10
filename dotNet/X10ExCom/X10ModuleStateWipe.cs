@@ -30,8 +30,8 @@ namespace X10ExCom
         public override string ToHumanReadableString()
         {
             return String.Format(
-                "Type = {0}, House = {1}",
-                "ModuleStateWipe",
+                "{0}House = {1}",
+                base.ToHumanReadableString(),
                 Convert.ToChar(House));
         }
     }

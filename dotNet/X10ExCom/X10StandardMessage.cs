@@ -16,8 +16,14 @@ namespace X10ExCom
             set { House = (X10House)value[0]; }
         }
 
-        [DataMember(Name = "unit", IsRequired = true, Order = 2)]
         public X10Unit Unit { get; set; }
+
+        [DataMember(Name = "unit", IsRequired = true, Order = 2)]
+        public byte UnitNumber
+        {
+            get { return (byte)((byte)Unit + 1); }
+            set { Unit = (X10Unit)(byte)(value - 1); }
+        }
 
         [DataMember(Name = "url", IsRequired = true, Order = 3)]
         public string Url { get; set; }
@@ -129,10 +135,12 @@ namespace X10ExCom
         public override string ToHumanReadableString()
         {
             return String.Format(
-                "Type = {0}, Module = {1}{2}, Command = {3}",
-                "StandardMessage",
+                "{0}Module = {1}{2}, Type = {3}{4}, Command = {5}",
+                base.ToHumanReadableString(),
                 Convert.ToChar(House),
-                NibbleToDecimal((byte)Unit, "_"),
+                UnitToString(Unit, "_"),
+                Type,
+                String.IsNullOrEmpty(Name) ? "" : " (" + Name + ")",
                 Command);
         }
     }

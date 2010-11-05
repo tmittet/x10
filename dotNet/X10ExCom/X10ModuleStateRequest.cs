@@ -40,10 +40,10 @@ namespace X10ExCom
         public override string ToHumanReadableString()
         {
             return String.Format(
-                "Type = {0}, Module = {1}{2}",
-                "ModuleStateRequest",
+                "{0}Module = {1}{2}",
+                base.ToHumanReadableString(),
                 Convert.ToChar(House),
-                NibbleToDecimal((byte)Unit, "*"));
+                UnitToString(Unit, "*"));
         }
     }
 }

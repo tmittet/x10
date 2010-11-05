@@ -141,18 +141,12 @@ namespace X10ExCom
 
         public override string ToHumanReadableString()
         {
-            string standardMessage = String.Format(
-                "Type = {0}, Module = {1}{2}, Command = {3}",
-                "ExtendedMessage",
-                Convert.ToChar(House),
-                NibbleToDecimal((byte) Unit, "_"),
-                Command);
             switch (Command)
             {
                 case X10Command.ExtendedCode:
                     return String.Format(
                         "{0}, Category = {1} (0x{2}), Function = {3} (0x{4}), Data = 0x{5}",
-                        standardMessage,
+                        base.ToHumanReadableString(),
                         ExtendedCategoryName,
                         ExtendedCategoryValue.ToString("X"),
                         ExtendedFunctionName,
@@ -162,12 +156,12 @@ namespace X10ExCom
                 case X10Command.StatusOff:
                     return String.Format(
                         "{0}, Brightness = {1}%",
-                        standardMessage,
+                        base.ToHumanReadableString(),
                         ExtendedBrightness);
                 default:
                     return String.Format(
                         "{0}, ExtCommand = 0x{1}, Data = 0x{2}",
-                        standardMessage,
+                        base.ToHumanReadableString(),
                         ExtendedCommand,
                         ExtendedData);
             }

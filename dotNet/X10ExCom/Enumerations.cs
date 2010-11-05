@@ -59,9 +59,9 @@
     public enum X10Type : byte
     {
         Unknown = 0x0,
-        Appliance = 0x0,
-        Dimmer = 0x0,
-        Sensor = 0x0,
+        Appliance = 0x1,
+        Dimmer = 0x2,
+        Sensor = 0x3,
     }
 
     public enum X10Command : byte

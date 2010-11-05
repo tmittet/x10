@@ -120,7 +120,12 @@ namespace X10ExCom
 
         public abstract override string ToString();
 
-        public abstract string ToHumanReadableString();
+        public virtual string ToHumanReadableString()
+        {
+            return String.Format(
+                "{0}: ",
+                GetType().Name.StartsWith("X10") ? GetType().Name.Substring(3) : GetType().Name); // NOTE: Fix this after refactoring structure,
+        }
 
         #endregion
 
@@ -165,9 +170,10 @@ namespace X10ExCom
             return number < 16 ? number.ToString("X") : "_";
         }
 
-        internal static string NibbleToDecimal(byte number, string unknownReplacement)
+        internal static string UnitToString(X10Unit unit, string unknownReplacement)
         {
-            return number < 16 ? (number + 1).ToString() : unknownReplacement;
+            byte unitNumber = (byte)unit;
+            return unitNumber < 16 ? (unitNumber + 1).ToString() : unknownReplacement;
         }
 
         internal static byte HexToNibble(char number)

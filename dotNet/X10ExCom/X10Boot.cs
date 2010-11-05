@@ -12,8 +12,8 @@ namespace X10ExCom
         public override string ToHumanReadableString()
         {
             return String.Format(
-                "Type = {0}, Message = {1}",
-                "Boot",
+                "{0}Message = {1}",
+                base.ToHumanReadableString(),
                 "Arduino rebooted. Setup Complete.");
         }
     }

@@ -52,8 +52,8 @@ namespace X10ExCom
         public override string ToHumanReadableString()
         {
             return String.Format(
-                "Type = {0}, Code = {1}, Message = {2}",
-                "Error",
+                "{0}Code = {1}, Message = {2}",
+                base.ToHumanReadableString(),
                 Code,
                 Message);
         }
