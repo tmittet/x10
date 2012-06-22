@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.3.         */
+/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.4.         */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -17,7 +17,11 @@
 /* Written by Thomas Mittet thomas@mittet.nu October 2010.              */
 /************************************************************************/
 
+#if defined(ARDUINO) && ARDUINO >= 100
+#include "Arduino.h"
+#else
 #include "WProgram.h"
+#endif
 #include "pins_arduino.h"
 #include <avr/eeprom.h>
 #include "X10ex.h"
@@ -96,12 +100,17 @@ void X10ex::begin()
 {
   // Using arduino digitalWrite here ensures that pins are
   // set up correctly (pwm timers are turned off, etc).
+#if defined(ARDUINO) && ARDUINO >= 101
+  pinMode(zeroCrossPin, INPUT_PULLUP);
+  pinMode(receivePin, INPUT_PULLUP);
+#else
   digitalWrite(zeroCrossPin, HIGH);
   pinMode(zeroCrossPin, INPUT);
-  pinMode(transmitPin, OUTPUT);
-  digitalWrite(transmitPin, LOW);
   digitalWrite(receivePin, HIGH);
   pinMode(receivePin, INPUT);
+#endif
+  pinMode(transmitPin, OUTPUT);
+  digitalWrite(transmitPin, LOW);
   // Setup IO timer
   TCCR1A = 0;
   TCCR1B = _BV(WGM13) & ~(_BV(CS10) | _BV(CS11) | _BV(CS12));

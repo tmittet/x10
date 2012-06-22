@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 IR receiver library, v1.1.                                       */
+/* X10 IR receiver library, v1.2.                                       */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -17,7 +17,11 @@
 /* Written by Thomas Mittet thomas@mittet.nu June 2010.                 */
 /************************************************************************/
 
+#if defined(ARDUINO) && ARDUINO >= 100
+#include "Arduino.h"
+#else
 #include "WProgram.h"
+#endif
 #include "pins_arduino.h"
 #include "X10ir.h"
 

@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 PLC, RF, IR library test sketch with REST & JSON support, v1.0.  */
+/* X10 PLC, RF, IR library test sketch with REST & JSON support, v1.1.  */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
@@ -78,7 +78,8 @@ byte bmExtCommand;
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-byte ip[] = { 10, 0, 0, 3 };
+IPAddress ip(10, 0, 0, 3);
+IPAddress subnet(255, 255, 255, 0);
 
 // zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true, phases = 1, sineWaveHz = 50
 X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage, 1, 50);
@@ -88,7 +89,7 @@ X10rf x10rf = X10rf(0, 2, processRfCommand);
 X10ir x10ir = X10ir(1, 3, 'A', processIrCommand);
 
 // Initialize the Ethernet server library, start listening on port 80 (http)
-Server server(80);
+EthernetServer server(80);
 
 void setup()
 {
@@ -249,7 +250,7 @@ void processSdMessage()
 // Process request received from Arduino Ethernet Shield
 void processEthernetRequest()
 {
-  Client client = server.available();
+  EthernetClient client = server.available();
   if(client)
   {
     while(client.connected())
@@ -689,7 +690,7 @@ void sdPrintModuleState(char house, byte unit)
   }
 }
 
-bool erPrintModuleState(Client client, char house, byte unit, bool isFirst, bool printUnseenModules)
+bool erPrintModuleState(EthernetClient client, char house, byte unit, bool isFirst, bool printUnseenModules)
 {
   X10state state = x10ex.getModuleState(house, unit);
   X10info info = x10ex.getModuleInfo(house, unit);
