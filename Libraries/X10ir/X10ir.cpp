@@ -50,6 +50,9 @@ X10ir::X10ir(uint8_t receiveInt, uint8_t receivePin, char defaultHouse, irReceiv
   this->receivePort = digitalPinToPort(receivePin);
   this->receiveBitMask = digitalPinToBitMask(receivePin);
   this->irReceiveCallback = irReceiveCallback;
+#if X10_IR_UNIT_RESET_TIME
+  this->defaultHouse = defaultHouse;
+#endif
   house = defaultHouse;
   command = DATA_UNKNOWN;
   x10irInstance = this;
@@ -87,6 +90,15 @@ void X10ir::receive()
       lowUs = micros() - lowUs;
       if(lowUs >= X10_IR_SB_MIN && lowUs <= X10_IR_SB_MAX)
       {
+#if X10_IR_UNIT_RESET_TIME
+        // If more than specified unit reset time in milliseconds has passed since the last successful
+        // IR command was received, set the house and unit code back to their default values
+        if(receiveEnded && (millis() - receiveEnded > X10_IR_UNIT_RESET_TIME || receiveEnded > millis()))
+        {
+          house = defaultHouse;
+          unit = 0;
+        }
+#endif
         // Since receiving every command repeat will waste CPU cycles, let's assume that a
         // consecutive command received within a certain threshold is the same as the last one
         if(receiveEnded && millis() > receiveEnded && millis() - receiveEnded < X10_IR_REPEAT_THRESHOLD)

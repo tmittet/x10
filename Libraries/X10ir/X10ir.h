@@ -22,6 +22,16 @@
 
 #include <inttypes.h>
 
+// With IR remotes: house, unit and command are sent separately. A default
+// house code is set when initializing the IR library; this makes it
+// possible to control a device without selecting house code every time.
+// The house code can be changed by sending a set house code IR command.
+// However: to avoid confusion when using IR remotes, it's a good idea to
+// reset the house and unit codes to their default values after some time.
+// The default behavior is to reset the house and unit codes after 20
+// seconds of silence. To disable this feature set the reset time to 0.
+#define X10_IR_UNIT_RESET_TIME  20000
+
 // IR initial start burst min length
 #define X10_IR_SB_MIN            3800
 // IR start burst max length
@@ -74,6 +84,9 @@ private:
   irReceiveCallback_t irReceiveCallback;
   // Used by interrupt triggered methods
   uint32_t lowUs, receiveEnded;
+#if X10_IR_UNIT_RESET_TIME
+  char defaultHouse;
+#endif
   char house;
   uint8_t unit, command;
   int8_t receivedCount;
