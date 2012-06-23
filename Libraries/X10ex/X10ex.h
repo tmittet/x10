@@ -151,10 +151,10 @@ class X10ex
     static const uint8_t UNIT_CODE[16];
     // Set in constructor
     uint8_t zeroCrossInt, zeroCrossPin, transmitPin, transmitPort, transmitBitMask, receivePin, receivePort, receiveBitMask, ioStopState;
-	  uint16_t inputDelayCycles, outputDelayCycles, outputLengthCycles;
+    uint16_t inputDelayCycles, outputDelayCycles, outputLengthCycles;
     bool receiveTransmits;
     plcReceiveCallback_t plcReceiveCallback;
-	  // Transmit and receive fields
+    // Transmit and receive fields
     int8_t ioState;
     bool volatile zcInput, zcOutput;
     // Transmit fields
