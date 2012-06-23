@@ -78,18 +78,17 @@ byte bmExtCommand;
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-IPAddress ip(10, 0, 0, 3);
-IPAddress subnet(255, 255, 255, 0);
+IPAddress ip(10, 0, 0, 3); 
 
 // zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true, phases = 1, sineWaveHz = 50
-X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage, 1, 50);
+X10ex x10ex = X10ex(2, 4, 5, 6, true, powerLineEvent, 1, 50);
 // receiveInt = 0 (external interrupt), receivePin = 2
-X10rf x10rf = X10rf(0, 2, processRfCommand);
+X10rf x10rf = X10rf(0, 2, radioFreqEvent);
 // receiveInt = 1 (external interrupt), receivePin = 3, defaultHouse = 'A'
-X10ir x10ir = X10ir(1, 3, 'A', processIrCommand);
+X10ir x10ir = X10ir(1, 3, 'A', infraredEvent);
 
 // Initialize the Ethernet server library, start listening on port 80 (http)
-EthernetServer server(80);
+EthernetServer server = EthernetServer(80);
 
 void setup()
 {
@@ -104,18 +103,17 @@ void setup()
 
 void loop()
 {
-  processSdMessage();
-  if(!Serial.available()) processEthernetRequest();
+  if(!Serial.available()) ethernetReceive();
 }
 
 // Process messages received from X10 modules over the power line
-void processPlMessage(char house, byte unit, byte command, byte extData, byte extCommand, byte remainingBits)
+void powerLineEvent(char house, byte unit, byte command, byte extData, byte extCommand, byte remainingBits)
 {
   printX10Message(POWER_LINE_MSG, house, unit, command, extData, extCommand, remainingBits);
 }
 
 // Process commands received from X10 compatible RF remote
-void processRfCommand(char house, byte unit, byte command, bool isRepeat)
+void radioFreqEvent(char house, byte unit, byte command, bool isRepeat)
 {
   if(!isRepeat) printX10Message(RADIO_FREQ_MSG, house, unit, command, 0, 0, 0);
   // Check if command is handled by scenario; if not continue
@@ -136,7 +134,7 @@ void processRfCommand(char house, byte unit, byte command, bool isRepeat)
 }
 
 // Process commands received from X10 compatible IR remote
-void processIrCommand(char house, byte unit, byte command, bool isRepeat)
+void infraredEvent(char house, byte unit, byte command, bool isRepeat)
 {
   if(!isRepeat) printX10Message(INFRARED_MSG, house, unit, command, 0, 0, 0);
   // Check if command is handled by scenario; if not continue
@@ -211,8 +209,9 @@ void processIrCommand(char house, byte unit, byte command, bool isRepeat)
 // |+--- Wipe Module State Character
 // +---- Request Module State Character
 //
-void processSdMessage()
+void serialEvent()
 {
+  // Read 3 bytes from serial buffer
   if(Serial.available() >= 3)
   {
     byte byte1 = toupper(Serial.read());
@@ -242,13 +241,14 @@ void processSdMessage()
       sdReceived = 0;
       Serial.print(SERIAL_DATA_MSG);
       Serial.println(MSG_RECEIVE_TIMEOUT);
+      // Clear serial input buffer
       Serial.flush();
     }
   }
 }
 
 // Process request received from Arduino Ethernet Shield
-void processEthernetRequest()
+void ethernetReceive()
 {
   EthernetClient client = server.available();
   if(client)

@@ -41,11 +41,11 @@ byte bmCommand;
 byte bmExtCommand;
 
 // zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true, phases = 1, sineWaveHz = 50
-X10ex x10ex = X10ex(2, 4, 5, 6, true, processPlMessage, 1, 50);
+X10ex x10ex = X10ex(2, 4, 5, 6, true, powerLineEvent, 1, 50);
 // receiveInt = 0 (external interrupt), receivePin = 2
-X10rf x10rf = X10rf(0, 2, processRfCommand);
+X10rf x10rf = X10rf(0, 2, radioFreqEvent);
 // receiveInt = 1 (external interrupt), receivePin = 3, defaultHouse = 'A'
-X10ir x10ir = X10ir(1, 3, 'A', processIrCommand);
+X10ir x10ir = X10ir(1, 3, 'A', infraredEvent);
 
 void setup()
 {
@@ -57,18 +57,16 @@ void setup()
 }
 
 void loop()
-{
-  processSdMessage();
-}
+{ }
 
 // Process messages received from X10 modules over the power line
-void processPlMessage(char house, byte unit, byte command, byte extData, byte extCommand, byte remainingBits)
+void powerLineEvent(char house, byte unit, byte command, byte extData, byte extCommand, byte remainingBits)
 {
   printX10Message(POWER_LINE_MSG, house, unit, command, extData, extCommand, remainingBits);
 }
 
 // Process commands received from X10 compatible RF remote
-void processRfCommand(char house, byte unit, byte command, bool isRepeat)
+void radioFreqEvent(char house, byte unit, byte command, bool isRepeat)
 {
   if(!isRepeat) printX10Message(RADIO_FREQ_MSG, house, unit, command, 0, 0, 0);
   // Check if command is handled by scenario; if not continue
@@ -89,7 +87,7 @@ void processRfCommand(char house, byte unit, byte command, bool isRepeat)
 }
 
 // Process commands received from X10 compatible IR remote
-void processIrCommand(char house, byte unit, byte command, bool isRepeat)
+void infraredEvent(char house, byte unit, byte command, bool isRepeat)
 {
   if(!isRepeat) printX10Message(INFRARED_MSG, house, unit, command, 0, 0, 0);
   // Check if command is handled by scenario; if not continue
@@ -164,8 +162,9 @@ void processIrCommand(char house, byte unit, byte command, bool isRepeat)
 // |+--- Wipe Module State Character
 // +---- Request Module State Character
 //
-void processSdMessage()
+void serialEvent()
 {
+  // Read 3 bytes from serial buffer
   if(Serial.available() >= 3)
   {
     byte byte1 = toupper(Serial.read());
@@ -193,6 +192,7 @@ void processSdMessage()
       bmExtCommand = 0;
       sdReceived = 0;
       Serial.println(SERIAL_DATA_TIMEOUT);
+      // Clear serial input buffer
       Serial.flush();
     }
   }
