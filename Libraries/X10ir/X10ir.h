@@ -22,13 +22,23 @@
 
 #include <inttypes.h>
 
+// IR initial start burst min length
 #define X10_IR_SB_MIN            3800
+// IR start burst max length
 #define X10_IR_SB_MAX            4400
+// IR end burst min length
 #define X10_IR_EB_MIN           11000
+// IR bit 0 min length
 #define X10_IR_BIT0_MIN          1050
+// IR bit 0 max length
 #define X10_IR_BIT0_MAX          1300
+// IR bit 1 min length
 #define X10_IR_BIT1_MIN          3550
+// IR bit 1 max length
 #define X10_IR_BIT1_MAX          4000
+// When repeated start burst is detected within this millisecond threshold
+// of the last command received, it is assumed that the following command
+// is the same and that it does not need to be parsed
 #define X10_IR_REPEAT_THRESHOLD   250
 
 #define X10_IR_TYPE_HOUSE   B0001

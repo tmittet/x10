@@ -49,20 +49,20 @@
 // need to increase the buffer size. Using long post strings, for example when executing scenarios with multiple extended commands,
 // might also cause the buffer to run out of space. With a buffer size of 64, you can send a scenario with 20 individual standard
 // commands or 7 individual extended commands. A standard command is 3 bytes long and an extended command is 9 bytes long.
-#define HTTP_BUFFER_MAX          64
+#define HTTP_BUFFER_MAX 64
 
 // I recommend disabling the "Expect: 100-continue" on your HTTP client. When posting data with this feature enabled the HTTP client
 // will send an "Expect: 100-continue" request in the header and then wait for the server to respond with a "100 Continue" before
-// sending the body. This makes HTTP post unnecessarily slow, especially when using slow cell phone connections. The default response
+// sending the body. This makes HTTP posts unnecessarily slow, especially when using slow cell phone connections. The default response
 // timeout is 5 seconds. To disable "Expect: 100-continue" support on the Arduino: just set the timeout defined below to 0.
-#define HTTP_CONTINUE_TIMEOUT  5000
+#define HTTP_CONTINUE_TIMEOUT 5000
 
+// Ethernet receive HTTP parser constants
 #define HTTP_STATE_PARSE_METHOD   0
 #define HTTP_STATE_AUTHENTICATE   1
 #define HTTP_STATE_WAIT_CONTINUE  2
 #define HTTP_STATE_CONTINUE       3
 #define HTTP_STATE_BODY_DONE      4
-
 #define HTTP_METHOD_UNKNOWN  0
 #define HTTP_METHOD_GET      1
 #define HTTP_METHOD_POST     2
