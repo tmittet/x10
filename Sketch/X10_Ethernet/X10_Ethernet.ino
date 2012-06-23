@@ -242,7 +242,7 @@ void serialEvent()
       Serial.print(SERIAL_DATA_MSG);
       Serial.println(MSG_RECEIVE_TIMEOUT);
       // Clear serial input buffer
-      Serial.flush();
+      while(Serial.read() != -1);
     }
   }
 }

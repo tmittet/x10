@@ -193,7 +193,7 @@ void serialEvent()
       sdReceived = 0;
       Serial.println(SERIAL_DATA_TIMEOUT);
       // Clear serial input buffer
-      Serial.flush();
+      while(Serial.read() != -1);
     }
   }
 }
