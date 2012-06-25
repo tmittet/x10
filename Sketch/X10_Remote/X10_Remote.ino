@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 PLC, RF, IR library test sketch with Serial support, v1.3        */
+/* X10 RF and IR-remote library test sketch with Serial support, v1.3   */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
