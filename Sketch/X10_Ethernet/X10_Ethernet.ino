@@ -75,29 +75,52 @@ byte bmUnit;
 byte bmCommand;
 byte bmExtCommand;
 
-// Enter a MAC address and IP address for your controller below.
-// The IP address will be dependent on your local network:
+// Choose a MAC-address and IP-address for your controller below.
+// The IP address you should choose depends on your network setup:
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-IPAddress ip(10, 0, 0, 3); 
+IPAddress ip(10, 0, 0, 3);
 
-// zeroCrossInt = 2 (pin change interrupt), zeroCrossPin = 4, transmitPin = 5, receivePin = 6, receiveTransmits = true, phases = 1, sineWaveHz = 50
-X10ex x10ex = X10ex(2, 4, 5, 6, true, powerLineEvent, 1, 50);
-// receiveInt = 0 (external interrupt), receivePin = 2
-X10rf x10rf = X10rf(0, 2, radioFreqEvent);
-// receiveInt = 1 (external interrupt), receivePin = 3, defaultHouse = 'A'
-X10ir x10ir = X10ir(1, 3, 'A', infraredEvent);
-
-// Initialize the Ethernet server library, start listening on port 80 (http)
-EthernetServer server = EthernetServer(80);
+// X10 Power Line Communication Library
+X10ex x10ex = X10ex(
+  2, // Zero Cross Interrupt Number (2 = "Custom" Pin Change Interrupt)
+  4, // Zero Cross Interrupt Pin (Pin 4-7 can be used with interrupt 2)
+  5, // Power Line Transmit Pin 
+  6, // Power Line Receive Pin
+  true, // Enable this to see echo of what is transmitted on the power line
+  powerLineEvent, // Event triggered when power line message is received
+  1, // Number of phases (1 = No Phase Repeat/Coupling)
+  50 // The power line AC frequency (e.g. 50Hz in Europe, 60Hz in North America)
+);
+// X10 RF Receiver Library
+X10rf x10rf = X10rf(
+  0, // Receive Interrupt Number (0 = Standard Arduino External Interrupt)
+  2, // Receive Interrupt Pin (Pin 2 must be used with interrupt 0)
+  radioFreqEvent // Event triggered when RF message is received
+);
+// X10 Infrared Receiver Library
+X10ir x10ir = X10ir(
+  1, // Receive Interrupt Number (1 = Standard Arduino External Interrupt)
+  3, // Receive Interrupt Pin (Pin 3 must be used with interrupt 1)
+  'A', // Default House Code
+  infraredEvent // Event triggered when IR message is received
+);
+// Ethernet server library
+EthernetServer server = EthernetServer(
+  80 // Start listening on port 80 (http)
+);
 
 void setup()
 {
+  // Remember to set baud rate in Serial Monitor or lower this to 9600 (default value)
   Serial.begin(115200);
+  // Start the PLC, RF and IR libraries
   x10ex.begin();
   x10rf.begin();
   x10ir.begin();
+  // Start the Ethernet Server library
   Ethernet.begin(mac, ip);
   server.begin();
+  // X10 is printed in Serial Monitor at startup if you have connected your Arduino correctly
   Serial.println("X10");
 }
 
@@ -621,9 +644,6 @@ bool process3BMessage(const char type[], byte byte1, byte byte2, byte byte3)
     Serial.print(byte3 >= 'A' && byte3 <= 'P' ? (char)byte3 : '*');
     Serial.println("__");
   }
-  // Future enhancements:
-  // QT = Query Type, QN = Query Name
-  // UT = Update Type, UN = Update Name
   // Unknown command/data
   else
   {
