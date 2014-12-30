@@ -14,7 +14,7 @@
 /* You should have received a copy of the GNU General Public License    */
 /* along with this library. If not, see <http://www.gnu.org/licenses/>. */
 /*                                                                      */
-/* Written by Thomas Mittet thomas@mittet.nu June 2012.                 */
+/* Written by Thomas Mittet code@lookout.no June 2012.                  */
 /************************************************************************/
 
 #include <X10ex.h>
