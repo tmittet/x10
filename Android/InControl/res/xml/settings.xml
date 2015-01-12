@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+	<PreferenceCategory android:title="@string/login_credentials">
+		<EditTextPreference android:key="userName" android:title="@string/user_name" android:defaultValue="test" android:inputType="text" />
+		<EditTextPreference android:key="password" android:title="@string/password" android:defaultValue="test" android:inputType="textPassword" />
+	</PreferenceCategory>
+	<PreferenceCategory android:title="@string/connection_settings">
+		<EditTextPreference android:key="domainOrIP" android:title="@string/domain_or_ip" android:defaultValue="" android:inputType="textEmailAddress" />
+		<EditTextPreference android:key="portNumber" android:title="@string/port_number" android:defaultValue="80" android:numeric="integer" android:inputType="number" />
+		<EditTextPreference android:key="connectionTimeout" android:title="@string/connection_timeout" android:defaultValue="6000" android:numeric="integer" android:inputType="number" />
+		<EditTextPreference android:key="responseTimeout" android:title="@string/response_timeout" android:defaultValue="6000" android:numeric="integer" android:inputType="number" />
+	</PreferenceCategory>
+	<PreferenceCategory android:title="@string/layout_options">
+		<ListPreference android:key="startupTab" android:title="@string/startup_tab" android:entries="@array/tabs" android:entryValues="@array/tab_values" android:defaultValue="0"></ListPreference>
+		<PreferenceScreen android:key="deviceHouseFilter" android:title="@string/device_house_filter" android:summary="@string/device_house_filter_summary">
+			<CheckBoxPreference android:key="deviceHouseShowA" android:title="House A" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowB" android:title="House B" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowC" android:title="House C" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowD" android:title="House D" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowE" android:title="House E" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowF" android:title="House F" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowG" android:title="House G" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowH" android:title="House H" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowI" android:title="House I" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowJ" android:title="House J" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowK" android:title="House K" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowL" android:title="House L" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowM" android:title="House M" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowN" android:title="House N" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowO" android:title="House O" android:defaultValue="true"></CheckBoxPreference>
+			<CheckBoxPreference android:key="deviceHouseShowP" android:title="House P" android:defaultValue="true"></CheckBoxPreference>
+		</PreferenceScreen>
+		<ListPreference android:key="deviceOrder" android:title="@string/device_order" android:entries="@array/device_order" android:entryValues="@array/device_order_values" android:defaultValue="2"></ListPreference>
+	</PreferenceCategory>
+</PreferenceScreen>

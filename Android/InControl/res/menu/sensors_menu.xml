@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/add_sensor"
+          android:icon="@drawable/ic_add_sensor"
+          android:title="@string/add_sensor" />
+    <item android:id="@+id/settings"
+          android:icon="@drawable/ic_settings"
+          android:title="@string/settings" />
+    <item android:id="@+id/quit"
+          android:icon="@drawable/ic_exit"
+          android:title="@string/quit" />
+</menu>
