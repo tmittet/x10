@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 PLC library test sketch with Serial support, v1.0                */
+/* X10 PLC library test sketch with Serial support, v1.6.               */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */

@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.4.         */
+/* X10 Rx/Tx library for the XM10/TW7223/TW523 interface, v1.6.         */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */

@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 PLC, RF, IR library test sketch with REST & JSON support, v1.1.  */
+/* X10 PLC, RF, IR library test sketch with REST & JSON support, v1.6.  */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */

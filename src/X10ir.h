@@ -1,5 +1,5 @@
 /************************************************************************/
-/* X10 IR receiver library, v1.2.                                       */
+/* X10 IR receiver library, v1.6.                                       */
 /*                                                                      */
 /* This library is free software: you can redistribute it and/or modify */
 /* it under the terms of the GNU General Public License as published by */
