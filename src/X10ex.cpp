@@ -805,7 +805,7 @@ void X10ex::clearReceiveBuffer()
 
 uint8_t X10ex::parseHouseCode(uint8_t house)
 {
-  return house - (house < 0xF ? 0 : house >= 0x61 ? 0x61 : 0x41);
+  return house - (house <= 0xF ? 0 : house >= 0x61 ? 0x61 : 0x41);
 }
 
 int8_t X10ex::findCodeIndex(const uint8_t codeList[16], uint8_t code)
