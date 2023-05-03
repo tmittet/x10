@@ -156,7 +156,7 @@ bool X10ex::sendDim(uint8_t house, uint8_t unit, uint8_t percent, uint8_t repeti
     return sendExt(
       house, unit, brightness >> 4 ? CMD_PRE_SET_DIM_1 : CMD_PRE_SET_DIM_0,
       // Reverse nibble before sending
-      (((brightness * 0x0802LU & 0x22110LU) | (brightness * 0x8020LU & 0x88440LU)) * 0x10101LU >> 20) & B1111, 0,
+      ((brightness * 0x0802LU & 0x2814LU) * 0x1111LU >> 12) & B1111, 0,
       repetitions);
   }
 }
@@ -600,7 +600,7 @@ void X10ex::receiveStandardMessage()
     rxData =
       (
         // Get the four least significant bits in reverse (bit 8-5 => 1-4)
-        ((((receiveBuffer * 0x0802LU & 0x22110LU) | (receiveBuffer * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16) & B1111) +
+       (((receiveBuffer * 0x0802LU & 0x8140LU) * 0x1111LU >> 16) & B1111) +
         // Add most significant bit (bit 1 => 5)
         ((receiveBuffer & B0001) << 4)
       ) * 2;
